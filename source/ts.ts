@@ -1,75 +1,64 @@
-export interface IUser {
-    id: number;
-    name: string;
-    email?: string;
-    isActive: boolean;
+import { readFile, writeFile } from "node:fs/promises";
+
+function parseCell(value: string): string | number {
+  const v = value.trim();
+  if (/^-?\d+(\.\d+)?$/.test(v)) return Number(v);
+  return v;
 }
 
-export function createUser(id: number, name: string, email?: string, isActive: boolean = true): IUser {
-  return { id, name, email, isActive };
-}
+export function csvToJSON(input: string[], delimiter: string): object[] {
+  if (!Array.isArray(input) || input.length === 0) {
+    throw new Error("Input must contain at least header row");
+  }
+  if (typeof delimiter !== "string" || delimiter.length === 0) {
+    throw new Error("Delimiter must be a non-empty string");
+  }
 
-export type bookgenre = 'fiction' | 'non-fiction';
+  const headerLine = input[0];
+  const headers = headerLine.split(delimiter).map(h => h.trim());
 
-export interface IBook {
-    title: string;
-    author: string;
-    year?: number;
-    genre: bookgenre;
-}
+  if (headers.length === 0 || headers.some(h => h.length === 0)) {
+    throw new Error("Header must contain column names");
+  }
 
-export function createBook(book: IBook): IBook{
-return book;
-}
+  const result: object[] = [];
 
-export function calculateArea(shape: 'circle', radius: number): number;
-export function calculateArea(shape: 'square', side: number): number;
-export function calculateArea(shape: 'circle' | 'square', value: number): number{
-    if (shape === 'circle') {
-        return Math.PI * value * value;
-    }else{
-        return value * value;
+  for (let i = 1; i < input.length; i++) {
+    const row = input[i];
+    if (row.trim().length === 0) continue;
+
+    const cells = row.split(delimiter);
+
+    if (cells.length !== headers.length) {
+      throw new Error(
+        `Row ${i} has ${cells.length} values but header has ${headers.length}`
+      );
     }
 
-}
-
-export type Status = 'active' | 'inactive' | 'new';
-
-export function getStatusColor(status: Status): string{
-    switch (status){
-        case 'active' : return 'green';
-        case 'inactive' : return 'red';
-        case 'new' : return 'yellow';
+    const obj: Record<string, string | number> = {};
+    for (let c = 0; c < headers.length; c++) {
+      obj[headers[c]] = parseCell(cells[c]);
     }
+    result.push(obj);
+  }
+
+  return result;
 }
 
-export type StringFormatter = (str: string, uppercase?: boolean) => string;
+export async function formatCSVFileToJSONFile(
+  input: string,
+  output: string,
+  delimiter: string
+): Promise<void> {
+  const raw = await readFile(input, { encoding: "utf-8" });
 
-export const capitalLetter: StringFormatter = (str, uppercase = false) => {
-  if (uppercase) return str.toUpperCase();
-  
-  const trimmed = str.trimStart();
-  if (trimmed.length === 0) return str;
-  
-  const firstNonSpaceIndex = str.length - trimmed.length;
-  return str.substring(0, firstNonSpaceIndex) + 
-         trimmed.charAt(0).toUpperCase() + 
-         trimmed.slice(1);
-};
+  const lines = raw
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
+    .split("\n");
 
-export const trimAndUppercase: StringFormatter = (str, uppercase = false) => {
-  const trimmed = str.trim();
-  return uppercase ? trimmed.toUpperCase() : trimmed;
-};
+  const data = csvToJSON(lines.filter(l => l.length > 0), delimiter);
 
-export function getFirstElement<T>(arr: T[]): T | undefined {
-  return arr.length > 0 ? arr[0] : undefined;
-}
-
-export interface HasId {
-  id: number;
-}
-
-export function findById<T extends HasId>(items: T[], id: number): T | undefined {
-  return items.find(item => item.id === id);
+  const json = JSON.stringify(data, null, 2);
+  await writeFile(output, json, { encoding: "utf-8" });
 }

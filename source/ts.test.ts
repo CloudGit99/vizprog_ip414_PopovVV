@@ -1,98 +1,90 @@
-import { describe, it, expect } from 'vitest';
-import {
-  createUser,
-  createBook,
-  calculateArea,
-  getStatusColor,
-  capitalLetter,
-  trimAndUppercase,
-  getFirstElement,
-  findById,
-  type IBook,
-} from './ts';
+import { describe, it, expect, vi } from "vitest";
+import { beforeEach } from "vitest";
 
-describe('createUser', () => {
-  it('создаёт пользователя с isActive=true по умолчанию', () => {
-    const u = createUser(1, 'Vladimir', 'vovan@gmail.com');
-    expect(u).toEqual({ id: 1, name: 'Vladimir', email: 'vovan@gmail.com', isActive: true });
+beforeEach(() => {
+  vi.clearAllMocks();
+});
+
+vi.mock("node:fs/promises", () => {
+  return {
+    readFile: vi.fn(),
+    writeFile: vi.fn(),
+  };
+});
+
+import { csvToJSON, formatCSVFileToJSONFile } from "./ts";
+import { readFile, writeFile } from "node:fs/promises";
+
+describe("csvToJSON", () => {
+  it("parses correct CSV input into array of objects (keeps column order)", () => {
+    const res = csvToJSON(
+      ["p1;p2;p3;p4", "1;A;b;c", "2;B;v;d"],
+      ";"
+    );
+
+    expect(res).toEqual([
+      { p1: 1, p2: "A", p3: "b", p4: "c" },
+      { p1: 2, p2: "B", p3: "v", p4: "d" },
+    ]);
   });
 
-  it('принимает isActive=false', () => {
-    const u = createUser(2, 'Petr', undefined, false);
-    expect(u.isActive).toBe(false);
-    expect(u.email).toBeUndefined();
+  it("throws error when input is empty", () => {
+    expect(() => csvToJSON([], ";")).toThrowError();
+  });
+
+  it("throws error when delimiter is empty", () => {
+    expect(() => csvToJSON(["a;b", "1;2"], "")).toThrowError();
+  });
+
+  it("throws error when a row has different number of columns than header", () => {
+    expect(() =>
+      csvToJSON(["a;b;c", "1;2"], ";")
+    ).toThrowError();
+  });
+
+  it("trims header names and parses numeric cells", () => {
+    const res = csvToJSON(["  id ; name ", " 10 ; John "], ";");
+    expect(res).toEqual([{ id: 10, name: "John" }]);
   });
 });
 
-describe('createBook', () => {
-  it('возвращает книгу с year', () => {
-    const b: IBook = { title: 'title', author: 'author', year: 2026, genre: 'fiction' };
-    expect(createBook(b)).toEqual(b);
+describe("formatCSVFileToJSONFile", () => {
+  it("reads CSV, converts to JSON, writes JSON with correct args", async () => {
+    const readMock = vi.mocked(readFile);
+    const writeMock = vi.mocked(writeFile);
+
+    readMock.mockResolvedValueOnce("p1;p2\n1;A\n2;B\n");
+
+    await formatCSVFileToJSONFile("in.csv", "out.json", ";");
+
+    expect(readMock).toHaveBeenCalledTimes(1);
+    expect(readMock).toHaveBeenCalledWith("in.csv", { encoding: "utf-8" });
+
+    expect(writeMock).toHaveBeenCalledTimes(1);
+
+    const expectedObj = [
+      { p1: 1, p2: "A" },
+      { p1: 2, p2: "B" },
+    ];
+    const expectedJson = JSON.stringify(expectedObj, null, 2);
+
+    expect(writeMock).toHaveBeenCalledWith(
+      "out.json",
+      expectedJson,
+      { encoding: "utf-8" }
+    );
   });
 
-  it('возвращает книгу без year', () => {
-    const b: IBook = { title: 'title', author: 'author', genre: 'non-fiction' };
-    expect(createBook(b)).toEqual(b);
-  });
-});
+  it("propagates error if csv is invalid (writeFile should not be called)", async () => {
+    const readMock = vi.mocked(readFile);
+    const writeMock = vi.mocked(writeFile);
 
-describe('calculateArea', () => {
-  it('площадь круга', () => {
-    expect(calculateArea('circle', 2)).toBeCloseTo(Math.PI * 4, 10);
-  });
+    readMock.mockResolvedValueOnce("a;b;c\n1;2\n");
 
-  it('площадь квадрата', () => {
-    expect(calculateArea('square', 3)).toBe(9);
-  });
-});
+    await expect(
+      formatCSVFileToJSONFile("bad.csv", "out.json", ";")
+    ).rejects.toThrowError();
 
-describe('getStatusColor', () => {
-  it('возвращает цвета', () => {
-    expect(getStatusColor('active')).toBe('green');
-    expect(getStatusColor('inactive')).toBe('red');
-    expect(getStatusColor('new')).toBe('yellow');
-  });
-});
-
-describe('StringFormatter', () => {
-  it('capitalLetter делает первую букву заглавной (с учётом пробелов слева)', () => {
-    expect(capitalLetter(' hello')).toBe(' Hello');
-    expect(capitalLetter('')).toBe('');
-    expect(capitalLetter('   ')).toBe('   ');
-  });
-
-  it('capitalLetter uppercase=true делает всё верхним регистром', () => {
-    expect(capitalLetter(' hello', true)).toBe(' HELLO');
-  });
-
-  it('trimAndUppercase обрезает пробелы', () => {
-    expect(trimAndUppercase('  hi  ')).toBe('hi');
-  });
-
-  it('trimAndUppercase uppercase=true', () => {
-    expect(trimAndUppercase('  hi  ', true)).toBe('HI');
-  });
-});
-
-describe('getFirstElement', () => {
-  it('возвращает первый элемент', () => {
-    expect(getFirstElement([10, 20])).toBe(10);
-    expect(getFirstElement(['a', 'b'])).toBe('a');
-  });
-
-  it('для пустого массива возвращает undefined', () => {
-    expect(getFirstElement([])).toBeUndefined();
-  });
-});
-
-describe('findById', () => {
-  it('находит объект по id', () => {
-    const items = [{ id: 1, name: 'A' }, { id: 2, name: 'B' }];
-    expect(findById(items, 2)).toEqual({ id: 2, name: 'B' });
-  });
-
-  it('если нет — undefined', () => {
-    const items = [{ id: 1, name: 'A' }];
-    expect(findById(items, 999)).toBeUndefined();
+    expect(writeMock).not.toHaveBeenCalled();
   });
 });
