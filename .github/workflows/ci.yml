@@ -8,12 +8,14 @@ on:
       - lab1 
       - lab3
       - lab4
+      - lab5
   pull_request: 
     branches: 
       - master 
       - lab1
       - lab3
       - lab4
+      - lab5
 
 jobs:
     build:

@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, expectTypeOf } from "vitest";
 import { where, sort, groupBy, having, query, Group } from "./query";
 
 type User = {
@@ -17,9 +17,24 @@ const users: User[] = [
   { id: 5, name: "Дмитрий", surname: "Огнивенко", age: 22, city: "IRK" },
 ];
 
-describe("фильтрация", () => {
+describe("Фильтрация", () => {
   it("фильтрует элементы по значению поля", () => {
-    const result = where<User, "name">("name", "Владимир")(users);
+    const result = query<User>(
+      where<User, "name">("name", "Владимир")
+    )(users);
+
+    expect(result).toEqual([
+      { id: 1, name: "Владимир", surname: "Попов", age: 22, city: "NSK" },
+      { id: 2, name: "Владимир", surname: "Попов", age: 20, city: "NSK" },
+      { id: 3, name: "Владимир", surname: "Попов", age: 23, city: "IRK" },
+    ]);
+  });
+
+  it("поддерживает две фильтрации подряд", () => {
+    const result = query<User>(
+      where<User, "name">("name", "Владимир"),
+      where<User, "surname">("surname", "Попов")
+    )(users);
 
     expect(result).toEqual([
       { id: 1, name: "Владимир", surname: "Попов", age: 22, city: "NSK" },
@@ -31,14 +46,19 @@ describe("фильтрация", () => {
 
 describe("Сортировка", () => {
   it("сортирует массив по числовому полю", () => {
-    const result = sort<User, "age">("age")(users);
+    const result = query<User>(
+      sort<User, "age">("age")
+    )(users);
 
     expect(result.map((u) => u.age)).toEqual([20, 22, 22, 23, 24]);
   });
 
   it("не изменяет исходный массив", () => {
     const copy = [...users];
-    sort<User, "age">("age")(users);
+
+    query<User>(
+      sort<User, "age">("age")
+    )(users);
 
     expect(users).toEqual(copy);
   });
@@ -46,7 +66,9 @@ describe("Сортировка", () => {
 
 describe("Группировка", () => {
   it("группирует элементы по значению поля", () => {
-    const result = groupBy<User, "city">("city")(users);
+    const result = query<User, "city">(
+      groupBy<User, "city">("city")
+    )(users);
 
     expect(result).toEqual([
       {
@@ -70,10 +92,10 @@ describe("Группировка", () => {
 
 describe("Фильтрация групп", () => {
   it("оставляет только группы, удовлетворяющие условию", () => {
-    const grouped = groupBy<User, "city">("city")(users);
-    const result = having<User, "city">(
-      (group: Group<User, "city">) => group.items.length > 2
-    )(grouped);
+    const result = query<User, "city">(
+      groupBy<User, "city">("city"),
+      having<User, "city">((group: Group<User, "city">) => group.items.length > 2)
+    )(users);
 
     expect(result).toEqual([
       {
@@ -89,8 +111,8 @@ describe("Фильтрация групп", () => {
 });
 
 describe("Конвейер преобразований", () => {
-  it("создает конвейер фильтрации и сортировки", () => {
-    const pipeline = query(
+  it("создает конвейер where -> where -> sort", () => {
+    const pipeline = query<User>(
       where<User, "name">("name", "Владимир"),
       where<User, "surname">("surname", "Попов"),
       sort<User, "age">("age")
@@ -105,10 +127,11 @@ describe("Конвейер преобразований", () => {
     ]);
   });
 
-  it("создает конвейер группировки и фильтрации групп", () => {
-    const pipeline = query(
+  it("создает конвейер where -> groupBy -> having", () => {
+    const pipeline = query<User, "city">(
+      where<User, "surname">("surname", "Попов"),
       groupBy<User, "city">("city"),
-      having<User, "city">((group: Group<User, "city">) => group.items.length > 2)
+      having<User, "city">((group: Group<User, "city">) => group.items.length > 1)
     );
 
     const result = pipeline(users);
@@ -119,45 +142,74 @@ describe("Конвейер преобразований", () => {
         items: [
           { id: 1, name: "Владимир", surname: "Попов", age: 22, city: "NSK" },
           { id: 2, name: "Владимир", surname: "Попов", age: 20, city: "NSK" },
-          { id: 4, name: "Евгений", surname: "Хмыльников", age: 24, city: "NSK" },
         ],
       },
     ]);
   });
 
-  it("поддерживает комбинированный конвейер операций", () => {
-    const pipeline = query(
+  it("создает конвейер where -> groupBy -> having -> sort", () => {
+    const pipeline = query<User, "city">(
       where<User, "surname">("surname", "Попов"),
       groupBy<User, "city">("city"),
-      having<User, "city">((group: Group<User, "city">) =>
-        group.items.some((u) => u.age > 20)
-      )
+      having<User, "city">((group: Group<User, "city">) => group.items.some((u) => u.age > 20)),
+      sort<Group<User, "city">, "key">("key")
     );
 
     const result = pipeline(users);
 
     expect(result).toEqual([
       {
+        key: "IRK",
+        items: [
+          { id: 3, name: "Владимир", surname: "Попов", age: 23, city: "IRK" },
+        ],
+      },
+      {
         key: "NSK",
         items: [
           { id: 1, name: "Владимир", surname: "Попов", age: 22, city: "NSK" },
           { id: 2, name: "Владимир", surname: "Попов", age: 20, city: "NSK" },
-
-        ],
-      },
-       {
-        key: "IRK",
-        items: [
-          { id: 3, name: "Владимир", surname: "Попов", age: 23, city: "IRK" },
         ],
       },
     ]);
   });
 
   it("возвращает исходный массив, если шаги не заданы", () => {
-    const pipeline = query();
+    const pipeline = query<User>();
     const result = pipeline(users);
 
     expect(result).toEqual(users);
   });
 });
+
+describe("Проверка типов", () => {
+  it("выводит тип User[] для where -> sort", () => {
+    const pipeline = query<User>(
+      where<User, "name">("name", "Владимир"),
+      sort<User, "age">("age")
+    );
+
+    expectTypeOf(pipeline).toEqualTypeOf<(data: User[]) => User[]>();
+  });
+
+  it("выводит тип Group<User, 'city'>[] для groupBy -> having -> sort", () => {
+    const pipeline = query<User, "city">(
+      groupBy<User, "city">("city"),
+      having<User, "city">((group: Group<User, "city">) => group.items.length > 1),
+      sort<Group<User, "city">, "key">("key")
+    );
+
+    expectTypeOf(pipeline).toEqualTypeOf<
+      (data: User[]) => Group<User, "city">[]
+    >();
+  });
+});
+
+// @ts-expect-error having нельзя вызывать без groupBy
+query<User>(where<User, "name">("name", "Владимир"), having<User, "city">((group: Group<User, "city">) => group.items.length > 1));
+
+// @ts-expect-error where нельзя ставить после groupBy
+query<User, "city">(groupBy<User, "city">("city"), where<User, "name">("name", "Владимир"));
+
+// @ts-expect-error после groupBy нельзя сортировать как User[], нужно сортировать группы
+query<User, "city">(where<User, "surname">("surname", "Попов"), groupBy<User, "city">("city"), sort<User, "age">("age"));
