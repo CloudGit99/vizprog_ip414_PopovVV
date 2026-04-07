@@ -1,0 +1,56 @@
+.App {
+  padding-top: 10px;
+  background-image:url('back.png');
+  background-repeat: no-repeat;
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed; 
+  width: 100%; 
+  min-height: 100vh;
+}
+
+.book_pattern {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 20px;
+}
+
+.pattern {
+  display: flex;
+  flex-direction: column;
+  overflow-y: unset;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  max-width: 220px;
+  max-height: 300px;
+}
+
+.text_header {
+  font-weight: bold;
+  font-size: 20px;
+  margin: 10px;
+  color: #ffffff;
+}
+
+.text_authors {
+  font-size: 16px;
+  margin: 10px;
+  color: #ffffff;
+}
+
+.text_p {
+  margin: 0px;
+  color: #ffffff;
+}
+
+.search_and_sort {
+  display: flex;
+  margin: 10px;
+  gap: 10px;
+  margin-bottom: 50px;
+}
+
+.search{
+width: 190px;
+}
