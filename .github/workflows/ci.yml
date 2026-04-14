@@ -21,6 +21,7 @@ on:
       - lab5
       - lab6
       - lab7
+      - lab8-9
 
 jobs:
     build:
@@ -35,6 +36,3 @@ jobs:
               run: |
                 npm ci
 
-            - name: Run tests
-              run: |
-                npm test

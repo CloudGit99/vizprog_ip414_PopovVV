@@ -1,0 +1,19 @@
+.WeatherForecast
+{
+    margin-top: 20px;
+    display: flex;
+    flex-direction: column;
+    text-align: center;
+    background-color: rgb(27, 84, 221);
+    height: auto;
+    width: 100%;
+    border: none;
+    border-radius: 10px;
+}
+.forecast{
+    margin-left: 10px;
+    margin-bottom: 10px; 
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
