@@ -1,13 +1,41 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { documentService } from "../../services/documentService";
+import { useAppDispatch, useAppSelector } from "../../store/hooks";
+import {
+  createDocument,
+  deleteDocument,
+  duplicateDocument,
+  loadDocuments,
+  renameDocument,
+  saveActiveDocument,
+  setActiveDocumentId,
+} from "../../store/documentsSlice";
+import {
+  clearSpreadsheet,
+  deleteColumnAt,
+  deleteRowAt,
+  insertColumnAt,
+  insertRowAt,
+  loadSpreadsheet,
+  redo,
+  replaceSpreadsheet,
+  setCellValue,
+  setRangeEnd,
+  setSelectedCell,
+  undo,
+} from "../../store/spreadsheetSlice";
+import {
+  closeCreateModal,
+  openCreateModal,
+  setSaveStatus,
+} from "../../store/uiSlice";
 import type {
   CellData,
   SpreadsheetDocument,
 } from "../../services/documentService";
+import type { CellPosition } from "../../store/spreadsheetSlice";
 import "./Spreadsheet.css";
 
-const CURRENT_USER_ID = "mock-user-1";
 const INITIAL_ROW_COUNT = 1000;
 const INITIAL_COLUMN_COUNT = 26;
 const DEFAULT_COLUMN_WIDTH = 100;
@@ -15,19 +43,12 @@ const DEFAULT_ROW_HEIGHT = 28;
 const MIN_COLUMN_WIDTH = 60;
 const MIN_ROW_HEIGHT = 24;
 
-type CellPosition = {
-  row: number;
-  column: string;
-};
-
 type ContextMenuState = {
   x: number;
   y: number;
   row: number;
   column: string;
 } | null;
-
-type SaveStatus = "saved" | "saving" | "error";
 
 function getColumnName(index: number): string {
   let columnName = "";
@@ -276,39 +297,57 @@ function downloadFile(fileName: string, content: string, type: string) {
 }
 
 function Spreadsheet() {
-  const [documents, setDocuments] = useState<SpreadsheetDocument[]>([]);
-  const [activeDocument, setActiveDocument] =
-    useState<SpreadsheetDocument | null>(null);
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const dispatch = useAppDispatch();
+  const documents = useAppSelector((state) => state.documents.items);
+  const activeDocumentId = useAppSelector(
+    (state) => state.documents.activeDocumentId,
+  );
+  const currentUser = useAppSelector((state) => state.auth.user);
+  const isCreateModalOpen = useAppSelector(
+    (state) => state.ui.isCreateModalOpen,
+  );
+  const saveStatus = useAppSelector((state) => state.ui.saveStatus);
+  const {
+    cells,
+    columnCount,
+    hasUnsavedChanges,
+    rangeEnd,
+    rowCount,
+    selectedCell,
+  } = useAppSelector((state) => state.spreadsheet);
   const [newTitle, setNewTitle] = useState("Новый документ");
   const [newRowCount, setNewRowCount] = useState(INITIAL_ROW_COUNT);
   const [newColumnCount, setNewColumnCount] = useState(INITIAL_COLUMN_COUNT);
-  const [saveStatus, setSaveStatus] = useState<SaveStatus>("saved");
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
-  const [selectedCell, setSelectedCell] = useState<CellPosition | null>(null);
-  const [rangeEnd, setRangeEnd] = useState<CellPosition | null>(null);
   const [editingCell, setEditingCell] = useState<CellPosition | null>(null);
   const [inputValue, setInputValue] = useState("");
   const [contextMenu, setContextMenu] = useState<ContextMenuState>(null);
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
   const [rowHeights, setRowHeights] = useState<Record<number, number>>({});
 
-  const saveTimerRef = useRef<number | null>(null);
-  const changeVersionRef = useRef(0);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const spreadsheetRef = useRef<HTMLDivElement | null>(null);
+  const documentMeta = documents.find(
+    (document) => document.id === activeDocumentId,
+  );
+  const activeDocument = documentMeta
+    ? {
+        ...documentMeta,
+        cells,
+        rowCount,
+        columnCount,
+      }
+    : null;
 
   const columns = useMemo(
     () =>
-      Array.from({ length: activeDocument?.columnCount ?? 0 }, (_, index) =>
-        getColumnName(index),
-      ),
-    [activeDocument?.columnCount],
+      Array.from({ length: columnCount }, (_, index) => getColumnName(index)),
+    [columnCount],
   );
 
   // eslint-disable-next-line react-hooks/incompatible-library
   const rowVirtualizer = useVirtualizer({
-    count: activeDocument?.rowCount ?? 0,
+    count: rowCount,
     getScrollElement: () => scrollContainerRef.current,
     estimateSize: (index) => rowHeights[index + 1] ?? DEFAULT_ROW_HEIGHT,
     overscan: 10,
@@ -321,54 +360,11 @@ function Spreadsheet() {
     : null;
 
   const formulaBarValue =
-    activeDocument && selectedCellId
-      ? (activeDocument.cells[selectedCellId] ?? "")
-      : "";
-
-  const saveDocument = useCallback(
-    async (force: boolean) => {
-      if (!activeDocument || (!hasUnsavedChanges && !force)) {
-        return;
-      }
-
-      try {
-        const savedVersion = changeVersionRef.current;
-        setSaveStatus("saving");
-
-        const savedDocument = await documentService.patchDocument(activeDocument.id, {
-          title: activeDocument.title,
-          rowCount: activeDocument.rowCount,
-          columnCount: activeDocument.columnCount,
-          cells: activeDocument.cells,
-        });
-
-        setDocuments((currentDocuments) =>
-          currentDocuments.map((document) =>
-            document.id === savedDocument.id ? savedDocument : document,
-          ),
-        );
-
-        if (changeVersionRef.current === savedVersion) {
-          setActiveDocument(savedDocument);
-          setHasUnsavedChanges(false);
-          setSaveStatus("saved");
-        }
-      } catch {
-        setSaveStatus("error");
-      }
-    },
-    [activeDocument, hasUnsavedChanges],
-  );
-
-  async function loadDocuments() {
-    const userDocuments = await documentService.getDocuments(CURRENT_USER_ID);
-
-    setDocuments(userDocuments);
-  }
+    activeDocument && selectedCellId ? (cells[selectedCellId] ?? "") : "";
 
   useEffect(() => {
-    void loadDocuments();
-  }, []);
+    void dispatch(loadDocuments());
+  }, [dispatch]);
 
   useEffect(() => {
     function handleBeforeUnload(event: BeforeUnloadEvent) {
@@ -386,131 +382,73 @@ function Spreadsheet() {
   }, [hasUnsavedChanges]);
 
   useEffect(() => {
-    if (!activeDocument || !hasUnsavedChanges) {
-      return;
-    }
-
-    setSaveStatus("saving");
-
-    if (saveTimerRef.current) {
-      window.clearTimeout(saveTimerRef.current);
-    }
-
-    saveTimerRef.current = window.setTimeout(() => {
-      void saveDocument(false);
-    }, 500);
-
-    return () => {
-      if (saveTimerRef.current) {
-        window.clearTimeout(saveTimerRef.current);
-      }
-    };
-  }, [activeDocument, hasUnsavedChanges, saveDocument]);
-
-  useEffect(() => {
     function handleShortcut(event: KeyboardEvent) {
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
+      if ((event.ctrlKey || event.metaKey) && event.code === "KeyS") {
         event.preventDefault();
-        void saveDocument(true);
+        void dispatch(saveActiveDocument());
       }
     }
 
     window.addEventListener("keydown", handleShortcut);
 
     return () => window.removeEventListener("keydown", handleShortcut);
-  }, [saveDocument]);
+  }, [dispatch]);
 
-  function updateActiveDocument(
-    updater: (document: SpreadsheetDocument) => SpreadsheetDocument,
-  ) {
-    changeVersionRef.current += 1;
-
-    setActiveDocument((currentDocument) => {
-      if (!currentDocument) {
-        return currentDocument;
-      }
-
-      return updater(currentDocument);
-    });
-
-    setHasUnsavedChanges(true);
-  }
-
-  async function createDocument() {
+  async function handleCreateDocument() {
     const title = newTitle.trim();
 
     if (!title) {
       return;
     }
 
-    const document = await documentService.createDocument(CURRENT_USER_ID, {
-      title,
-      rowCount: Math.max(1, newRowCount),
-      columnCount: Math.max(1, newColumnCount),
-    });
+    const document = await dispatch(
+      createDocument({
+        title,
+        rowCount: Math.max(1, newRowCount),
+        columnCount: Math.max(1, newColumnCount),
+      }),
+    ).unwrap();
 
-    setDocuments((currentDocuments) => [document, ...currentDocuments]);
     openDocument(document);
-    setIsCreateModalOpen(false);
+    dispatch(closeCreateModal());
     setNewTitle("Новый документ");
     setNewRowCount(INITIAL_ROW_COUNT);
     setNewColumnCount(INITIAL_COLUMN_COUNT);
   }
 
   function openDocument(document: SpreadsheetDocument) {
-    setActiveDocument(document);
-    setSelectedCell(null);
-    setRangeEnd(null);
+    dispatch(setActiveDocumentId(document.id));
+    dispatch(loadSpreadsheet(document));
     setEditingCell(null);
     setColumnWidths({});
     setRowHeights({});
-    setHasUnsavedChanges(false);
-    setSaveStatus("saved");
+    dispatch(setSaveStatus("saved"));
   }
 
-  async function renameDocument(document: SpreadsheetDocument) {
+  async function handleRenameDocument(document: SpreadsheetDocument) {
     const title = window.prompt("Новое название", document.title)?.trim();
 
     if (!title) {
       return;
     }
 
-    const renamedDocument = await documentService.patchDocument(document.id, {
-      title,
-    });
-
-    setDocuments((currentDocuments) =>
-      currentDocuments.map((currentDocument) =>
-        currentDocument.id === renamedDocument.id
-          ? renamedDocument
-          : currentDocument,
-      ),
-    );
-
-    if (activeDocument?.id === renamedDocument.id) {
-      setActiveDocument(renamedDocument);
-    }
+    await dispatch(renameDocument({ id: document.id, title }));
   }
 
-  async function deleteDocument(document: SpreadsheetDocument) {
+  async function handleDeleteDocument(document: SpreadsheetDocument) {
     if (!window.confirm(`Удалить "${document.title}"?`)) {
       return;
     }
 
-    await documentService.deleteDocument(document.id);
-    setDocuments((currentDocuments) =>
-      currentDocuments.filter((currentDocument) => currentDocument.id !== document.id),
-    );
+    await dispatch(deleteDocument(document.id));
 
     if (activeDocument?.id === document.id) {
-      setActiveDocument(null);
+      dispatch(clearSpreadsheet());
     }
   }
 
-  async function duplicateDocument(document: SpreadsheetDocument) {
-    const copy = await documentService.duplicateDocument(document.id);
-
-    setDocuments((currentDocuments) => [copy, ...currentDocuments]);
+  async function handleDuplicateDocument(document: SpreadsheetDocument) {
+    await dispatch(duplicateDocument(document.id));
   }
 
   function startEditing(row: number, column: string) {
@@ -525,7 +463,7 @@ function Spreadsheet() {
       column,
     });
 
-    setInputValue(activeDocument.cells[cellId] ?? "");
+    setInputValue(cells[cellId] ?? "");
   }
 
   function saveCell() {
@@ -535,15 +473,12 @@ function Spreadsheet() {
 
     const cellId = getCellId(editingCell.column, editingCell.row);
 
-    updateActiveDocument((document) => ({
-      ...document,
-      cells: {
-        ...document.cells,
-        [cellId]: inputValue,
-      },
-    }));
+    dispatch(setCellValue({ cellId, value: inputValue }));
 
     setEditingCell(null);
+    window.requestAnimationFrame(() => {
+      spreadsheetRef.current?.focus();
+    });
   }
 
   function cancelEditing() {
@@ -555,13 +490,7 @@ function Spreadsheet() {
       return;
     }
 
-    updateActiveDocument((document) => ({
-      ...document,
-      cells: {
-        ...document.cells,
-        [selectedCellId]: value,
-      },
-    }));
+    dispatch(setCellValue({ cellId: selectedCellId, value }));
   }
 
   function moveSelection(rowOffset: number, columnOffset: number) {
@@ -582,10 +511,12 @@ function Spreadsheet() {
       return;
     }
 
-    setSelectedCell({
-      row: nextRow,
-      column: getColumnName(nextColumnIndex),
-    });
+    dispatch(
+      setSelectedCell({
+        row: nextRow,
+        column: getColumnName(nextColumnIndex),
+      }),
+    );
   }
 
   function handleKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
@@ -593,13 +524,23 @@ function Spreadsheet() {
       return;
     }
 
+    if ((event.ctrlKey || event.metaKey) && event.code === "KeyZ") {
+      event.preventDefault();
+      dispatch(undo());
+    }
+
+    if ((event.ctrlKey || event.metaKey) && event.code === "KeyY") {
+      event.preventDefault();
+      dispatch(redo());
+    }
+
     if (event.key === "Enter") {
       startEditing(selectedCell.row, selectedCell.column);
     }
 
     if (event.key === "Escape") {
-      setSelectedCell(null);
-      setRangeEnd(null);
+      dispatch(setSelectedCell(null));
+      dispatch(setRangeEnd(null));
     }
 
     if (event.key === "ArrowUp") {
@@ -630,12 +571,12 @@ function Spreadsheet() {
     };
 
     if (shiftKey && selectedCell) {
-      setRangeEnd(nextCell);
+      dispatch(setRangeEnd(nextCell));
       return;
     }
 
-    setSelectedCell(nextCell);
-    setRangeEnd(null);
+    dispatch(setSelectedCell(nextCell));
+    dispatch(setRangeEnd(null));
   }
 
   function closeContextMenu() {
@@ -656,26 +597,8 @@ function Spreadsheet() {
     }));
   }
 
-  function insertRowAt(targetRow: number) {
-    updateActiveDocument((document) => {
-      const nextCells: CellData = {};
-
-      Object.entries(document.cells).forEach(([cellId, value]) => {
-        const { column, row } = parseCellId(cellId);
-
-        if (row >= targetRow) {
-          nextCells[getCellId(column, row + 1)] = value;
-        } else {
-          nextCells[cellId] = value;
-        }
-      });
-
-      return {
-        ...document,
-        rowCount: document.rowCount + 1,
-        cells: nextCells,
-      };
-    });
+  function handleInsertRowAt(targetRow: number) {
+    dispatch(insertRowAt(targetRow));
 
     setRowHeights((previousHeights) => {
       const nextHeights: Record<number, number> = {};
@@ -694,30 +617,8 @@ function Spreadsheet() {
     });
   }
 
-  function deleteRowAt(targetRow: number) {
-    updateActiveDocument((document) => {
-      const nextCells: CellData = {};
-
-      Object.entries(document.cells).forEach(([cellId, value]) => {
-        const { column, row } = parseCellId(cellId);
-
-        if (row === targetRow) {
-          return;
-        }
-
-        if (row > targetRow) {
-          nextCells[getCellId(column, row - 1)] = value;
-        } else {
-          nextCells[cellId] = value;
-        }
-      });
-
-      return {
-        ...document,
-        rowCount: Math.max(1, document.rowCount - 1),
-        cells: nextCells,
-      };
-    });
+  function handleDeleteRowAt(targetRow: number) {
+    dispatch(deleteRowAt(targetRow));
 
     setRowHeights((previousHeights) => {
       const nextHeights: Record<number, number> = {};
@@ -740,29 +641,10 @@ function Spreadsheet() {
     });
   }
 
-  function insertColumnAt(targetColumn: string) {
+  function handleInsertColumnAt(targetColumn: string) {
     const targetColumnIndex = getColumnIndex(targetColumn);
 
-    updateActiveDocument((document) => {
-      const nextCells: CellData = {};
-
-      Object.entries(document.cells).forEach(([cellId, value]) => {
-        const { column, row } = parseCellId(cellId);
-        const columnIndex = getColumnIndex(column);
-
-        if (columnIndex >= targetColumnIndex) {
-          nextCells[getCellId(getColumnName(columnIndex + 1), row)] = value;
-        } else {
-          nextCells[cellId] = value;
-        }
-      });
-
-      return {
-        ...document,
-        columnCount: document.columnCount + 1,
-        cells: nextCells,
-      };
-    });
+    dispatch(insertColumnAt(targetColumn));
 
     setColumnWidths((previousWidths) => {
       const nextWidths: Record<string, number> = {};
@@ -781,33 +663,10 @@ function Spreadsheet() {
     });
   }
 
-  function deleteColumnAt(targetColumn: string) {
+  function handleDeleteColumnAt(targetColumn: string) {
     const targetColumnIndex = getColumnIndex(targetColumn);
 
-    updateActiveDocument((document) => {
-      const nextCells: CellData = {};
-
-      Object.entries(document.cells).forEach(([cellId, value]) => {
-        const { column, row } = parseCellId(cellId);
-        const columnIndex = getColumnIndex(column);
-
-        if (columnIndex === targetColumnIndex) {
-          return;
-        }
-
-        if (columnIndex > targetColumnIndex) {
-          nextCells[getCellId(getColumnName(columnIndex - 1), row)] = value;
-        } else {
-          nextCells[cellId] = value;
-        }
-      });
-
-      return {
-        ...document,
-        columnCount: Math.max(1, document.columnCount - 1),
-        cells: nextCells,
-      };
-    });
+    dispatch(deleteColumnAt(targetColumn));
 
     setColumnWidths((previousWidths) => {
       const nextWidths: Record<string, number> = {};
@@ -837,7 +696,7 @@ function Spreadsheet() {
       return;
     }
 
-    insertRowAt(targetRow);
+    handleInsertRowAt(targetRow);
     closeContextMenu();
   }
 
@@ -848,7 +707,7 @@ function Spreadsheet() {
       return;
     }
 
-    deleteRowAt(targetRow);
+    handleDeleteRowAt(targetRow);
     closeContextMenu();
   }
 
@@ -859,7 +718,7 @@ function Spreadsheet() {
       return;
     }
 
-    insertColumnAt(targetColumn);
+    handleInsertColumnAt(targetColumn);
     closeContextMenu();
   }
 
@@ -870,7 +729,7 @@ function Spreadsheet() {
       return;
     }
 
-    deleteColumnAt(targetColumn);
+    handleDeleteColumnAt(targetColumn);
     closeContextMenu();
   }
 
@@ -909,12 +768,13 @@ function Spreadsheet() {
       });
     });
 
-    updateActiveDocument((document) => ({
-      ...document,
-      rowCount: Math.max(1, rows.length),
-      columnCount: Math.max(1, Math.max(...rows.map((row) => row.length))),
-      cells: nextCells,
-    }));
+    dispatch(
+      replaceSpreadsheet({
+        rowCount: Math.max(1, rows.length),
+        columnCount: Math.max(1, Math.max(...rows.map((row) => row.length))),
+        cells: nextCells,
+      }),
+    );
   }
 
   if (!activeDocument) {
@@ -923,10 +783,10 @@ function Spreadsheet() {
         <div className="dashboard-header">
           <div>
             <h1>Мои документы</h1>
-            <p>Текущий пользователь: {CURRENT_USER_ID}</p>
+            <p>Текущий пользователь: {currentUser.id}</p>
           </div>
 
-          <button type="button" onClick={() => setIsCreateModalOpen(true)}>
+          <button type="button" onClick={() => dispatch(openCreateModal())}>
             Создать документ
           </button>
         </div>
@@ -945,13 +805,22 @@ function Spreadsheet() {
                   <button type="button" onClick={() => openDocument(document)}>
                     Открыть
                   </button>
-                  <button type="button" onClick={() => renameDocument(document)}>
+                  <button
+                    type="button"
+                    onClick={() => handleRenameDocument(document)}
+                  >
                     Переименовать
                   </button>
-                  <button type="button" onClick={() => duplicateDocument(document)}>
+                  <button
+                    type="button"
+                    onClick={() => handleDuplicateDocument(document)}
+                  >
                     Дублировать
                   </button>
-                  <button type="button" onClick={() => deleteDocument(document)}>
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteDocument(document)}
+                  >
                     Удалить
                   </button>
                 </div>
@@ -1015,10 +884,10 @@ function Spreadsheet() {
               </label>
 
               <div className="modal__actions">
-                <button type="button" onClick={createDocument}>
+                <button type="button" onClick={handleCreateDocument}>
                   Создать
                 </button>
-                <button type="button" onClick={() => setIsCreateModalOpen(false)}>
+                <button type="button" onClick={() => dispatch(closeCreateModal())}>
                   Отмена
                 </button>
               </div>
@@ -1032,7 +901,13 @@ function Spreadsheet() {
   return (
     <div className="spreadsheet-wrapper" onClick={closeContextMenu}>
       <div className="document-toolbar">
-        <button type="button" onClick={() => setActiveDocument(null)}>
+        <button
+          type="button"
+          onClick={() => {
+            dispatch(setActiveDocumentId(null));
+            dispatch(clearSpreadsheet());
+          }}
+        >
           Назад
         </button>
 
@@ -1042,7 +917,7 @@ function Spreadsheet() {
         <span>{saveStatus === "saving" && "Сохранение..."}</span>
         <span>{saveStatus === "error" && "Ошибка сохранения"}</span>
 
-        <button type="button" onClick={() => saveDocument(true)}>
+        <button type="button" onClick={() => dispatch(saveActiveDocument())}>
           Сохранить
         </button>
         <button type="button" onClick={exportCsv}>
@@ -1084,7 +959,12 @@ function Spreadsheet() {
       </div>
 
       <div ref={scrollContainerRef} className="spreadsheet-scroll">
-        <div className="spreadsheet" tabIndex={0} onKeyDown={handleKeyDown}>
+        <div
+          ref={spreadsheetRef}
+          className="spreadsheet"
+          tabIndex={0}
+          onKeyDown={handleKeyDown}
+        >
           <div className="spreadsheet__row">
             <div className="spreadsheet__corner" />
 
@@ -1234,10 +1114,12 @@ function Spreadsheet() {
                         onContextMenu={(event) => {
                           event.preventDefault();
 
-                          setSelectedCell({
-                            row: rowNumber,
-                            column,
-                          });
+                          dispatch(
+                            setSelectedCell({
+                              row: rowNumber,
+                              column,
+                            }),
+                          );
 
                           setContextMenu({
                             x: event.clientX,
@@ -1268,7 +1150,7 @@ function Spreadsheet() {
                             }}
                           />
                         ) : (
-                          getDisplayValue(activeDocument.cells, cellId)
+                          getDisplayValue(cells, cellId)
                         )}
                       </div>
                     );

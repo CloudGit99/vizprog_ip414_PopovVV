@@ -5,6 +5,11 @@ Library - TanStack Virtual
 Как запустить:
 npm run dev
 
+Проверка:
+npm run build
+npm run lint
+npm test
+
 Документы:
 Создать документ - кнопка на главной
 Открыть - открыть таблицу
@@ -13,6 +18,14 @@ npm run dev
 Удалить - удаление с подтверждением
 Сохранить - кнопка или Ctrl+S
 Автосохранение - 500 ms после изменения ячейки
+
+Redux:
+Состояние документов - documentsSlice
+Состояние таблицы - spreadsheetSlice
+Модалки и сохранение - uiSlice
+Пользователь - authSlice
+Undo - Ctrl+Z
+Redo - Ctrl+Y
 
 Экспорт/импорт:
 Экспорт CSV - скачать .csv
