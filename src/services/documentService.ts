@@ -2,6 +2,20 @@ export type CellData = {
   [cellId: string]: string;
 };
 
+export type CellStyle = {
+  bold?: boolean;
+  italic?: boolean;
+  underline?: boolean;
+  backgroundColor?: string;
+  textColor?: string;
+  align?: "left" | "center" | "right";
+  numberFormat?: "plain" | "percent" | "currency" | "date";
+};
+
+export type CellStyles = {
+  [cellId: string]: CellStyle;
+};
+
 export type SpreadsheetDocument = {
   id: string;
   userId: string;
@@ -11,6 +25,7 @@ export type SpreadsheetDocument = {
   rowCount: number;
   columnCount: number;
   cells: CellData;
+  cellStyles: CellStyles;
 };
 
 export type CreateDocumentData = {
@@ -20,7 +35,10 @@ export type CreateDocumentData = {
 };
 
 export type UpdateDocumentData = Partial<
-  Pick<SpreadsheetDocument, "title" | "rowCount" | "columnCount" | "cells">
+  Pick<
+    SpreadsheetDocument,
+    "title" | "rowCount" | "columnCount" | "cells" | "cellStyles"
+  >
 >;
 
 const STORAGE_KEY = "spreadsheet_documents";
@@ -74,6 +92,7 @@ export const documentService = {
       rowCount: data.rowCount,
       columnCount: data.columnCount,
       cells: {},
+      cellStyles: {},
     };
 
     writeDocuments([document, ...readDocuments()]);
@@ -127,6 +146,7 @@ export const documentService = {
       createdAt: now,
       updatedAt: now,
       cells: { ...source.cells },
+      cellStyles: { ...(source.cellStyles ?? {}) },
     };
 
     writeDocuments([document, ...documents]);

@@ -12,6 +12,8 @@ import spreadsheetReducer, {
   insertRowAt,
   redo,
   replaceSpreadsheet,
+  clearCell,
+  setCellStyle,
   setCellValue,
   undo,
 } from "./spreadsheetSlice";
@@ -27,6 +29,8 @@ autosaveMiddleware.startListening({
     insertRowAt,
     redo,
     replaceSpreadsheet,
+    clearCell,
+    setCellStyle,
     setCellValue,
     undo,
   ),

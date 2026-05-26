@@ -5,12 +5,18 @@ import {
   Outlet,
   useBlocker,
   useLocation,
+  useNavigate,
 } from "react-router-dom";
-import { useAppSelector } from "../../store/hooks";
+import { logout } from "../../store/authSlice";
+import { clearSpreadsheet } from "../../store/spreadsheetSlice";
+import { useAppDispatch, useAppSelector } from "../../store/hooks";
 import "./AppLayout.css";
 
 function AppLayout() {
+  const dispatch = useAppDispatch();
+  const navigate = useNavigate();
   const location = useLocation();
+  const user = useAppSelector((state) => state.auth.user);
   const hasUnsavedChanges = useAppSelector(
     (state) => state.spreadsheet.hasUnsavedChanges,
   );
@@ -43,7 +49,17 @@ function AppLayout() {
     <div className="app-shell">
       <header className="app-header">
         <strong>Spreadsheet</strong>
-        <span>mock-auth</span>
+        <span>{user?.email}</span>
+        <button
+          type="button"
+          onClick={() => {
+            void dispatch(logout());
+            dispatch(clearSpreadsheet());
+            navigate("/login");
+          }}
+        >
+          Выйти
+        </button>
       </header>
 
       <div className="app-body">

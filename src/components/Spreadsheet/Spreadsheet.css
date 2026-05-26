@@ -204,6 +204,21 @@ button:hover {
   font: inherit;
 }
 
+.format-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.format-toolbar input,
+.format-toolbar select {
+  height: 32px;
+  border: 1px solid #ccc;
+  background: white;
+  font: inherit;
+}
+
 .spreadsheet-scroll {
   width: 100%;
   height: 600px;

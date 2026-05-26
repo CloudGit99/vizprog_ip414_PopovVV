@@ -2,9 +2,10 @@ import { describe, expect, it } from "vitest";
 import authReducer from "./authSlice";
 
 describe("authSlice", () => {
-  it("keeps mock user", () => {
+  it("starts without user", () => {
     const state = authReducer(undefined, { type: "test" });
 
-    expect(state.user.id).toBe("mock-user-1");
+    expect(state.user).toBe(null);
+    expect(state.accessToken).toBe(null);
   });
 });

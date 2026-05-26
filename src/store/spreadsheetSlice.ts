@@ -1,5 +1,10 @@
 import { createSlice } from "@reduxjs/toolkit";
-import type { CellData, SpreadsheetDocument } from "../services/documentService";
+import type {
+  CellData,
+  CellStyle,
+  CellStyles,
+  SpreadsheetDocument,
+} from "../services/documentService";
 
 export type CellPosition = {
   row: number;
@@ -8,6 +13,7 @@ export type CellPosition = {
 
 type SpreadsheetSnapshot = {
   cells: CellData;
+  cellStyles: CellStyles;
   rowCount: number;
   columnCount: number;
 };
@@ -22,6 +28,7 @@ type SpreadsheetState = SpreadsheetSnapshot & {
 
 const initialSnapshot: SpreadsheetSnapshot = {
   cells: {},
+  cellStyles: {},
   rowCount: 0,
   columnCount: 0,
 };
@@ -77,6 +84,7 @@ function parseCellId(cellId: string): CellPosition {
 function takeSnapshot(state: SpreadsheetState): SpreadsheetSnapshot {
   return {
     cells: { ...state.cells },
+    cellStyles: { ...state.cellStyles },
     rowCount: state.rowCount,
     columnCount: state.columnCount,
   };
@@ -84,6 +92,7 @@ function takeSnapshot(state: SpreadsheetState): SpreadsheetSnapshot {
 
 function applySnapshot(state: SpreadsheetState, snapshot: SpreadsheetSnapshot) {
   state.cells = snapshot.cells;
+  state.cellStyles = snapshot.cellStyles;
   state.rowCount = snapshot.rowCount;
   state.columnCount = snapshot.columnCount;
 }
@@ -100,6 +109,7 @@ const spreadsheetSlice = createSlice({
   reducers: {
     loadSpreadsheet(state, action: { payload: SpreadsheetDocument }) {
       state.cells = { ...action.payload.cells };
+      state.cellStyles = { ...(action.payload.cellStyles ?? {}) };
       state.rowCount = action.payload.rowCount;
       state.columnCount = action.payload.columnCount;
       state.selectedCell = null;
@@ -125,11 +135,26 @@ const spreadsheetSlice = createSlice({
       pushHistory(state);
       state.cells[action.payload.cellId] = action.payload.value;
     },
+    clearCell(state, action: { payload: string }) {
+      pushHistory(state);
+      state.cells[action.payload] = "";
+    },
+    setCellStyle(
+      state,
+      action: { payload: { cellId: string; style: CellStyle } },
+    ) {
+      pushHistory(state);
+      state.cellStyles[action.payload.cellId] = {
+        ...(state.cellStyles[action.payload.cellId] ?? {}),
+        ...action.payload.style,
+      };
+    },
     replaceSpreadsheet(
       state,
       action: {
         payload: {
           cells: CellData;
+          cellStyles?: CellStyles;
           rowCount: number;
           columnCount: number;
         };
@@ -137,12 +162,14 @@ const spreadsheetSlice = createSlice({
     ) {
       pushHistory(state);
       state.cells = action.payload.cells;
+      state.cellStyles = action.payload.cellStyles ?? {};
       state.rowCount = action.payload.rowCount;
       state.columnCount = action.payload.columnCount;
     },
     insertRowAt(state, action: { payload: number }) {
       const targetRow = action.payload;
       const nextCells: CellData = {};
+      const nextStyles: CellStyles = {};
 
       pushHistory(state);
 
@@ -151,17 +178,22 @@ const spreadsheetSlice = createSlice({
 
         if (row >= targetRow) {
           nextCells[getCellId(column, row + 1)] = value;
+          nextStyles[getCellId(column, row + 1)] =
+            state.cellStyles[cellId] ?? {};
         } else {
           nextCells[cellId] = value;
+          nextStyles[cellId] = state.cellStyles[cellId] ?? {};
         }
       });
 
       state.cells = nextCells;
+      state.cellStyles = nextStyles;
       state.rowCount += 1;
     },
     deleteRowAt(state, action: { payload: number }) {
       const targetRow = action.payload;
       const nextCells: CellData = {};
+      const nextStyles: CellStyles = {};
 
       if (state.rowCount <= 1) {
         return;
@@ -178,17 +210,22 @@ const spreadsheetSlice = createSlice({
 
         if (row > targetRow) {
           nextCells[getCellId(column, row - 1)] = value;
+          nextStyles[getCellId(column, row - 1)] =
+            state.cellStyles[cellId] ?? {};
         } else {
           nextCells[cellId] = value;
+          nextStyles[cellId] = state.cellStyles[cellId] ?? {};
         }
       });
 
       state.cells = nextCells;
+      state.cellStyles = nextStyles;
       state.rowCount -= 1;
     },
     insertColumnAt(state, action: { payload: string }) {
       const targetColumnIndex = getColumnIndex(action.payload);
       const nextCells: CellData = {};
+      const nextStyles: CellStyles = {};
 
       pushHistory(state);
 
@@ -198,17 +235,22 @@ const spreadsheetSlice = createSlice({
 
         if (columnIndex >= targetColumnIndex) {
           nextCells[getCellId(getColumnName(columnIndex + 1), row)] = value;
+          nextStyles[getCellId(getColumnName(columnIndex + 1), row)] =
+            state.cellStyles[cellId] ?? {};
         } else {
           nextCells[cellId] = value;
+          nextStyles[cellId] = state.cellStyles[cellId] ?? {};
         }
       });
 
       state.cells = nextCells;
+      state.cellStyles = nextStyles;
       state.columnCount += 1;
     },
     deleteColumnAt(state, action: { payload: string }) {
       const targetColumnIndex = getColumnIndex(action.payload);
       const nextCells: CellData = {};
+      const nextStyles: CellStyles = {};
 
       if (state.columnCount <= 1) {
         return;
@@ -226,12 +268,16 @@ const spreadsheetSlice = createSlice({
 
         if (columnIndex > targetColumnIndex) {
           nextCells[getCellId(getColumnName(columnIndex - 1), row)] = value;
+          nextStyles[getCellId(getColumnName(columnIndex - 1), row)] =
+            state.cellStyles[cellId] ?? {};
         } else {
           nextCells[cellId] = value;
+          nextStyles[cellId] = state.cellStyles[cellId] ?? {};
         }
       });
 
       state.cells = nextCells;
+      state.cellStyles = nextStyles;
       state.columnCount -= 1;
     },
     markSpreadsheetSaved(state) {
@@ -264,6 +310,7 @@ const spreadsheetSlice = createSlice({
 
 export const {
   clearSpreadsheet,
+  clearCell,
   deleteColumnAt,
   deleteRowAt,
   insertColumnAt,
@@ -273,6 +320,7 @@ export const {
   redo,
   replaceSpreadsheet,
   setCellValue,
+  setCellStyle,
   setRangeEnd,
   setSelectedCell,
   undo,

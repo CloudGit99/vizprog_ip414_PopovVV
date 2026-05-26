@@ -20,7 +20,9 @@ import {
   loadSpreadsheet,
   redo,
   replaceSpreadsheet,
+  clearCell,
   setCellValue,
+  setCellStyle,
   setRangeEnd,
   setSelectedCell,
   undo,
@@ -32,6 +34,7 @@ import {
 } from "../../store/uiSlice";
 import type {
   CellData,
+  CellStyle,
   SpreadsheetDocument,
 } from "../../services/documentService";
 import type { CellPosition } from "../../store/spreadsheetSlice";
@@ -210,6 +213,32 @@ function getDisplayValue(cells: CellData, cellId: string): string {
   return value;
 }
 
+function formatCellValue(value: string, style: CellStyle): string {
+  if (!value || value.startsWith("=")) {
+    return value;
+  }
+
+  const numberValue = Number(value);
+
+  if (style.numberFormat === "percent" && !Number.isNaN(numberValue)) {
+    return `${numberValue}%`;
+  }
+
+  if (style.numberFormat === "currency" && !Number.isNaN(numberValue)) {
+    return `${numberValue.toLocaleString("ru-RU")} ₽`;
+  }
+
+  if (style.numberFormat === "date") {
+    const date = new Date(value);
+
+    if (!Number.isNaN(date.getTime())) {
+      return date.toLocaleDateString("ru-RU");
+    }
+  }
+
+  return value;
+}
+
 function formatDate(value: string): string {
   return new Date(value).toLocaleString("ru-RU");
 }
@@ -316,6 +345,7 @@ function Spreadsheet({ documentId }: SpreadsheetProps) {
   const saveStatus = useAppSelector((state) => state.ui.saveStatus);
   const {
     cells,
+    cellStyles,
     columnCount,
     hasUnsavedChanges,
     rangeEnd,
@@ -369,6 +399,8 @@ function Spreadsheet({ documentId }: SpreadsheetProps) {
 
   const formulaBarValue =
     activeDocument && selectedCellId ? (cells[selectedCellId] ?? "") : "";
+
+  const selectedStyle = selectedCellId ? (cellStyles[selectedCellId] ?? {}) : {};
 
   const openDocument = useCallback(
     (document: SpreadsheetDocument) => {
@@ -525,6 +557,45 @@ function Spreadsheet({ documentId }: SpreadsheetProps) {
     dispatch(setCellValue({ cellId: selectedCellId, value }));
   }
 
+  function applySelectedStyle(style: CellStyle) {
+    if (!selectedCellId) {
+      return;
+    }
+
+    dispatch(setCellStyle({ cellId: selectedCellId, style }));
+  }
+
+  function getSelectedRangeCells() {
+    if (!selectedCell) {
+      return [];
+    }
+
+    if (!rangeEnd) {
+      return [getCellId(selectedCell.column, selectedCell.row)];
+    }
+
+    return getCellsInRange(
+      getCellId(selectedCell.column, selectedCell.row),
+      getCellId(rangeEnd.column, rangeEnd.row),
+    );
+  }
+
+  async function copySelectedCells(cut: boolean) {
+    const cellIds = getSelectedRangeCells();
+
+    if (cellIds.length === 0) {
+      return;
+    }
+
+    const text = cellIds.map((cellId) => cells[cellId] ?? "").join("\t");
+
+    await navigator.clipboard.writeText(text);
+
+    if (cut) {
+      cellIds.forEach((cellId) => dispatch(clearCell(cellId)));
+    }
+  }
+
   function moveSelection(rowOffset: number, columnOffset: number) {
     if (!activeDocument || !selectedCell) {
       return;
@@ -566,8 +637,61 @@ function Spreadsheet({ documentId }: SpreadsheetProps) {
       dispatch(redo());
     }
 
+    if ((event.ctrlKey || event.metaKey) && event.code === "KeyB") {
+      event.preventDefault();
+      applySelectedStyle({ bold: !selectedStyle.bold });
+    }
+
+    if ((event.ctrlKey || event.metaKey) && event.code === "KeyI") {
+      event.preventDefault();
+      applySelectedStyle({ italic: !selectedStyle.italic });
+    }
+
+    if ((event.ctrlKey || event.metaKey) && event.code === "KeyU") {
+      event.preventDefault();
+      applySelectedStyle({ underline: !selectedStyle.underline });
+    }
+
+    if ((event.ctrlKey || event.metaKey) && event.code === "KeyC") {
+      event.preventDefault();
+      void copySelectedCells(false);
+    }
+
+    if ((event.ctrlKey || event.metaKey) && event.code === "KeyX") {
+      event.preventDefault();
+      void copySelectedCells(true);
+    }
+
+    if ((event.ctrlKey || event.metaKey) && event.code === "KeyV") {
+      event.preventDefault();
+      const targetCellId = selectedCellId;
+
+      if (!targetCellId) {
+        return;
+      }
+
+      void navigator.clipboard.readText().then((text) => {
+        dispatch(setCellValue({ cellId: targetCellId, value: text }));
+      });
+    }
+
+    if ((event.ctrlKey || event.metaKey) && event.code === "KeyA") {
+      event.preventDefault();
+      dispatch(setRangeEnd({ row: rowCount, column: getColumnName(columnCount - 1) }));
+    }
+
+    if (event.key === "Delete" || event.key === "Backspace") {
+      event.preventDefault();
+      getSelectedRangeCells().forEach((cellId) => dispatch(clearCell(cellId)));
+    }
+
     if (event.key === "Enter") {
       startEditing(selectedCell.row, selectedCell.column);
+    }
+
+    if (event.key === "Tab") {
+      event.preventDefault();
+      moveSelection(0, 1);
     }
 
     if (event.key === "Escape") {
@@ -827,7 +951,7 @@ function Spreadsheet({ documentId }: SpreadsheetProps) {
         <div className="dashboard-header">
           <div>
             <h1>Мои документы</h1>
-            <p>Текущий пользователь: {currentUser.id}</p>
+            <p>Текущий пользователь: {currentUser?.id}</p>
           </div>
 
           <button type="button" onClick={() => dispatch(openCreateModal())}>
@@ -1009,6 +1133,66 @@ function Spreadsheet({ documentId }: SpreadsheetProps) {
         />
       </div>
 
+      <div className="format-toolbar">
+        <button
+          type="button"
+          onClick={() => applySelectedStyle({ bold: !selectedStyle.bold })}
+        >
+          B
+        </button>
+        <button
+          type="button"
+          onClick={() => applySelectedStyle({ italic: !selectedStyle.italic })}
+        >
+          I
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            applySelectedStyle({ underline: !selectedStyle.underline })
+          }
+        >
+          U
+        </button>
+        <input
+          type="color"
+          value={selectedStyle.backgroundColor ?? "#ffffff"}
+          onChange={(event) =>
+            applySelectedStyle({ backgroundColor: event.target.value })
+          }
+        />
+        <input
+          type="color"
+          value={selectedStyle.textColor ?? "#000000"}
+          onChange={(event) => applySelectedStyle({ textColor: event.target.value })}
+        />
+        <select
+          value={selectedStyle.align ?? "left"}
+          onChange={(event) =>
+            applySelectedStyle({
+              align: event.target.value as CellStyle["align"],
+            })
+          }
+        >
+          <option value="left">Слева</option>
+          <option value="center">Центр</option>
+          <option value="right">Справа</option>
+        </select>
+        <select
+          value={selectedStyle.numberFormat ?? "plain"}
+          onChange={(event) =>
+            applySelectedStyle({
+              numberFormat: event.target.value as CellStyle["numberFormat"],
+            })
+          }
+        >
+          <option value="plain">Число</option>
+          <option value="percent">Процент</option>
+          <option value="currency">Валюта</option>
+          <option value="date">Дата</option>
+        </select>
+      </div>
+
       <div ref={scrollContainerRef} className="spreadsheet-scroll">
         <div
           ref={spreadsheetRef}
@@ -1118,6 +1302,7 @@ function Spreadsheet({ documentId }: SpreadsheetProps) {
 
                   {columns.map((column) => {
                     const cellId = getCellId(column, rowNumber);
+                    const cellStyle = cellStyles[cellId] ?? {};
 
                     const isSelected =
                       selectedCell?.row === rowNumber &&
@@ -1151,6 +1336,14 @@ function Spreadsheet({ documentId }: SpreadsheetProps) {
                         style={{
                           width: columnWidths[column] ?? DEFAULT_COLUMN_WIDTH,
                           height: rowHeights[rowNumber] ?? DEFAULT_ROW_HEIGHT,
+                          backgroundColor: cellStyle.backgroundColor,
+                          color: cellStyle.textColor,
+                          fontWeight: cellStyle.bold ? 700 : undefined,
+                          fontStyle: cellStyle.italic ? "italic" : undefined,
+                          textDecoration: cellStyle.underline
+                            ? "underline"
+                            : undefined,
+                          textAlign: cellStyle.align,
                         }}
                         className={
                           isSelected
@@ -1201,7 +1394,7 @@ function Spreadsheet({ documentId }: SpreadsheetProps) {
                             }}
                           />
                         ) : (
-                          getDisplayValue(cells, cellId)
+                          formatCellValue(getDisplayValue(cells, cellId), cellStyle)
                         )}
                       </div>
                     );

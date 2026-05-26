@@ -15,6 +15,7 @@ const document: SpreadsheetDocument = {
   rowCount: 10,
   columnCount: 5,
   cells: {},
+  cellStyles: {},
 };
 
 describe("documentsSlice", () => {

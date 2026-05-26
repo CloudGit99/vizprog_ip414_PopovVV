@@ -18,6 +18,7 @@ const document: SpreadsheetDocument = {
   cells: {
     A1: "1",
   },
+  cellStyles: {},
 };
 
 describe("spreadsheetSlice", () => {

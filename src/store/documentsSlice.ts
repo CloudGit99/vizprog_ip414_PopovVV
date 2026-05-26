@@ -17,11 +17,12 @@ type DocumentsRootState = {
   auth: {
     user: {
       id: string;
-    };
+    } | null;
   };
   documents: DocumentsState;
   spreadsheet: {
     cells: SpreadsheetDocument["cells"];
+    cellStyles: SpreadsheetDocument["cellStyles"];
     rowCount: number;
     columnCount: number;
   };
@@ -38,6 +39,10 @@ export const loadDocuments = createAsyncThunk(
   async (_, { getState }) => {
     const state = getState() as DocumentsRootState;
 
+    if (!state.auth.user) {
+      return [];
+    }
+
     return documentService.getDocuments(state.auth.user.id);
   },
 );
@@ -46,6 +51,10 @@ export const createDocument = createAsyncThunk(
   "documents/createDocument",
   async (data: CreateDocumentData, { getState }) => {
     const state = getState() as DocumentsRootState;
+
+    if (!state.auth.user) {
+      throw new Error("Unauthorized");
+    }
 
     return documentService.createDocument(state.auth.user.id, data);
   },
@@ -96,6 +105,7 @@ export const saveActiveDocument = createAsyncThunk(
         rowCount: state.spreadsheet.rowCount,
         columnCount: state.spreadsheet.columnCount,
         cells: state.spreadsheet.cells,
+        cellStyles: state.spreadsheet.cellStyles,
       });
 
       dispatch(markSpreadsheetSaved());
