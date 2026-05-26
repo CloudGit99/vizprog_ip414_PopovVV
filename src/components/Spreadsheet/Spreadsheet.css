@@ -61,6 +61,124 @@
   padding: 16px;
 }
 
+button {
+  padding: 6px 10px;
+  border: 1px solid #ccc;
+  background: white;
+  cursor: pointer;
+}
+
+button:hover {
+  background: #f0f0f0;
+}
+
+.dashboard-header,
+.document-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.dashboard-header {
+  justify-content: space-between;
+}
+
+.dashboard-header h1,
+.document-card h2,
+.modal h2 {
+  margin: 0;
+}
+
+.dashboard-header p,
+.document-card p {
+  margin: 4px 0 0;
+  color: #666;
+}
+
+.documents-list {
+  display: grid;
+  gap: 12px;
+}
+
+.document-card,
+.empty-state,
+.modal {
+  border: 1px solid #ccc;
+  background: white;
+}
+
+.document-card {
+  padding: 12px;
+}
+
+.document-card__header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.document-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-content: flex-start;
+}
+
+.document-preview {
+  margin-top: 10px;
+  border-collapse: collapse;
+}
+
+.document-preview td {
+  width: 80px;
+  height: 24px;
+  border: 1px solid #ccc;
+  padding: 2px 4px;
+}
+
+.empty-state {
+  padding: 20px;
+  color: #666;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgb(0 0 0 / 30%);
+}
+
+.modal {
+  display: grid;
+  gap: 10px;
+  width: 320px;
+  padding: 16px;
+}
+
+.modal label {
+  display: grid;
+  gap: 4px;
+}
+
+.modal input {
+  padding: 6px 8px;
+  border: 1px solid #ccc;
+  font: inherit;
+}
+
+.modal__actions {
+  display: flex;
+  gap: 8px;
+}
+
+.file-input {
+  display: none;
+}
+
 .formula-bar {
   display: flex;
   width: 100%;

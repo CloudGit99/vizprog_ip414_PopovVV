@@ -1,16 +1,32 @@
 IP414 Popov Vladimir Viz.Prog Final Project
 React + Typescript + Vite
-Library - TanStack Virtual (виртуализации списков и таблиц)
-How to start: npm run dev
+Library - TanStack Virtual
 
-Formula:
+Как запустить:
+npm run dev
+
+Документы:
+Создать документ - кнопка на главной
+Открыть - открыть таблицу
+Переименовать - новое название
+Дублировать - копия документа
+Удалить - удаление с подтверждением
+Сохранить - кнопка или Ctrl+S
+Автосохранение - 500 ms после изменения ячейки
+
+Экспорт/импорт:
+Экспорт CSV - скачать .csv
+Экспорт JSON - скачать .json
+Импорт CSV - загрузить .csv
+
+Формулы:
 =SUM(?:?)
 =AVERAGE(?:?)
 =?+?
-=?\*2
-(? - cell)
+=?*2
+(? - ячейка)
 
-How to select range:
-Click on cell and shift + click on other cell
+Как выделить диапазон:
+Клик по ячейке и shift + клик по другой ячейке
 
-add/delete row/column menu: right click
+Меню добавления/удаления строки/столбца: правая кнопка мыши
