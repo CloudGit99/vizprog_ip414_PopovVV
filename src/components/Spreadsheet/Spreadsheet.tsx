@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useAppDispatch, useAppSelector } from "../../store/hooks";
 import {
@@ -49,6 +50,10 @@ type ContextMenuState = {
   row: number;
   column: string;
 } | null;
+
+type SpreadsheetProps = {
+  documentId?: string;
+};
 
 function getColumnName(index: number): string {
   let columnName = "";
@@ -296,12 +301,14 @@ function downloadFile(fileName: string, content: string, type: string) {
   URL.revokeObjectURL(url);
 }
 
-function Spreadsheet() {
+function Spreadsheet({ documentId }: SpreadsheetProps) {
+  const navigate = useNavigate();
   const dispatch = useAppDispatch();
   const documents = useAppSelector((state) => state.documents.items);
   const activeDocumentId = useAppSelector(
     (state) => state.documents.activeDocumentId,
   );
+  const loadingStatus = useAppSelector((state) => state.documents.loadingStatus);
   const currentUser = useAppSelector((state) => state.auth.user);
   const isCreateModalOpen = useAppSelector(
     (state) => state.ui.isCreateModalOpen,
@@ -321,6 +328,7 @@ function Spreadsheet() {
   const [editingCell, setEditingCell] = useState<CellPosition | null>(null);
   const [inputValue, setInputValue] = useState("");
   const [contextMenu, setContextMenu] = useState<ContextMenuState>(null);
+  const [isMissingDocument, setIsMissingDocument] = useState(false);
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
   const [rowHeights, setRowHeights] = useState<Record<number, number>>({});
 
@@ -362,9 +370,41 @@ function Spreadsheet() {
   const formulaBarValue =
     activeDocument && selectedCellId ? (cells[selectedCellId] ?? "") : "";
 
+  const openDocument = useCallback(
+    (document: SpreadsheetDocument) => {
+      dispatch(setActiveDocumentId(document.id));
+      dispatch(loadSpreadsheet(document));
+      setEditingCell(null);
+      setColumnWidths({});
+      setRowHeights({});
+      dispatch(setSaveStatus("saved"));
+    },
+    [dispatch],
+  );
+
   useEffect(() => {
     void dispatch(loadDocuments());
   }, [dispatch]);
+
+  useEffect(() => {
+    if (!documentId) {
+      dispatch(setActiveDocumentId(null));
+      dispatch(clearSpreadsheet());
+      return;
+    }
+
+    const document = documents.find((item) => item.id === documentId);
+
+    if (document) {
+      openDocument(document);
+      setIsMissingDocument(false);
+      return;
+    }
+
+    if (loadingStatus === "idle") {
+      setIsMissingDocument(true);
+    }
+  }, [dispatch, documentId, documents, loadingStatus, openDocument]);
 
   useEffect(() => {
     function handleBeforeUnload(event: BeforeUnloadEvent) {
@@ -410,19 +450,11 @@ function Spreadsheet() {
     ).unwrap();
 
     openDocument(document);
+    navigate(`/documents/${document.id}`);
     dispatch(closeCreateModal());
     setNewTitle("Новый документ");
     setNewRowCount(INITIAL_ROW_COUNT);
     setNewColumnCount(INITIAL_COLUMN_COUNT);
-  }
-
-  function openDocument(document: SpreadsheetDocument) {
-    dispatch(setActiveDocumentId(document.id));
-    dispatch(loadSpreadsheet(document));
-    setEditingCell(null);
-    setColumnWidths({});
-    setRowHeights({});
-    dispatch(setSaveStatus("saved"));
   }
 
   async function handleRenameDocument(document: SpreadsheetDocument) {
@@ -778,6 +810,18 @@ function Spreadsheet() {
   }
 
   if (!activeDocument) {
+    if (documentId) {
+      return (
+        <div className="spreadsheet-wrapper">
+          {isMissingDocument ? (
+            <div className="empty-state">Документ не найден</div>
+          ) : (
+            <div className="empty-state">Загрузка документа...</div>
+          )}
+        </div>
+      );
+    }
+
     return (
       <div className="spreadsheet-wrapper">
         <div className="dashboard-header">
@@ -802,7 +846,13 @@ function Spreadsheet() {
                 </div>
 
                 <div className="document-card__actions">
-                  <button type="button" onClick={() => openDocument(document)}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      openDocument(document);
+                      navigate(`/documents/${document.id}`);
+                    }}
+                  >
                     Открыть
                   </button>
                   <button
@@ -906,6 +956,7 @@ function Spreadsheet() {
           onClick={() => {
             dispatch(setActiveDocumentId(null));
             dispatch(clearSpreadsheet());
+            navigate("/dashboard");
           }}
         >
           Назад
