@@ -1,31 +1,36 @@
-name: Typescript CI
+name: CI
 
 on:
-  workflow_dispatch:
   push:
-    branches: 
-      - master 
-      - lab1 
-      - lab3
-  pull_request: 
-    branches: 
-      - master 
-      - lab1
-      - lab3
+    branches:
+      - main
+      - master
+  pull_request:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
 
 jobs:
-    build:
-        name: Build and Test
-        runs-on: ubuntu-latest
-        
-        steps:
-            - name: Checkout repository
-              uses: actions/checkout@v4
+  build:
+    name: Build project
+    runs-on: ubuntu-latest
 
-            - name: Install dependencies
-              run: |
-                npm ci
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-            - name: Run tests
-              run: |
-                npm test
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
