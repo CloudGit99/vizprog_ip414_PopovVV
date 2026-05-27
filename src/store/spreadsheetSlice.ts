@@ -6,11 +6,17 @@ import type {
   SpreadsheetDocument,
 } from "../services/documentService";
 
+/**
+ * Позиция одной ячейки в человекочитаемых координатах таблицы.
+ */
 export type CellPosition = {
   row: number;
   column: string;
 };
 
+/**
+ * Восстанавливаемая часть состояния таблицы для undo и redo.
+ */
 type SpreadsheetSnapshot = {
   cells: CellData;
   cellStyles: CellStyles;
@@ -18,6 +24,9 @@ type SpreadsheetSnapshot = {
   columnCount: number;
 };
 
+/**
+ * Redux state активного документа таблицы.
+ */
 type SpreadsheetState = SpreadsheetSnapshot & {
   selectedCell: CellPosition | null;
   rangeEnd: CellPosition | null;
@@ -42,6 +51,11 @@ const initialState: SpreadsheetState = {
   future: [],
 };
 
+/**
+ * Преобразует индекс столбца с нуля в название столбца таблицы.
+ *
+ * Пример: 0 -> A, 25 -> Z, 26 -> AA.
+ */
 function getColumnName(index: number): string {
   let columnName = "";
   let currentIndex = index;
@@ -54,6 +68,11 @@ function getColumnName(index: number): string {
   return columnName;
 }
 
+/**
+ * Преобразует название столбца таблицы в индекс с нуля.
+ *
+ * Пример: A -> 0, Z -> 25, AA -> 26.
+ */
 function getColumnIndex(columnName: string): number {
   let index = 0;
 
@@ -64,10 +83,16 @@ function getColumnIndex(columnName: string): number {
   return index - 1;
 }
 
+/**
+ * Собирает id ячейки из названия столбца и номера строки.
+ */
 function getCellId(column: string, row: number): string {
   return `${column}${row}`;
 }
 
+/**
+ * Разбирает id ячейки вроде "B12" на столбец и строку.
+ */
 function parseCellId(cellId: string): CellPosition {
   const match = cellId.match(/^([A-Z]+)(\d+)$/);
 
@@ -81,6 +106,9 @@ function parseCellId(cellId: string): CellPosition {
   };
 }
 
+/**
+ * Копирует поля таблицы, которые должны участвовать в undo/redo.
+ */
 function takeSnapshot(state: SpreadsheetState): SpreadsheetSnapshot {
   return {
     cells: { ...state.cells },
@@ -90,6 +118,9 @@ function takeSnapshot(state: SpreadsheetState): SpreadsheetSnapshot {
   };
 }
 
+/**
+ * Восстанавливает поля таблицы из snapshot.
+ */
 function applySnapshot(state: SpreadsheetState, snapshot: SpreadsheetSnapshot) {
   state.cells = snapshot.cells;
   state.cellStyles = snapshot.cellStyles;
@@ -97,16 +128,25 @@ function applySnapshot(state: SpreadsheetState, snapshot: SpreadsheetSnapshot) {
   state.columnCount = snapshot.columnCount;
 }
 
+/**
+ * Сохраняет текущее состояние таблицы перед пользовательским изменением.
+ */
 function pushHistory(state: SpreadsheetState) {
   state.past.push(takeSnapshot(state));
   state.future = [];
   state.hasUnsavedChanges = true;
 }
 
+/**
+ * Slice, который хранит данные активной таблицы, форматирование, выделение и историю.
+ */
 const spreadsheetSlice = createSlice({
   name: "spreadsheet",
   initialState,
   reducers: {
+    /**
+     * Загружает выбранный документ в редактор и сбрасывает временное состояние.
+     */
     loadSpreadsheet(state, action: { payload: SpreadsheetDocument }) {
       state.cells = { ...action.payload.cells };
       state.cellStyles = { ...(action.payload.cellStyles ?? {}) };
@@ -118,16 +158,28 @@ const spreadsheetSlice = createSlice({
       state.past = [];
       state.future = [];
     },
+    /**
+     * Очищает активную таблицу, когда документ не открыт.
+     */
     clearSpreadsheet(state) {
       Object.assign(state, initialState);
     },
+    /**
+     * Выбирает одну ячейку и сбрасывает конец диапазона.
+     */
     setSelectedCell(state, action: { payload: CellPosition | null }) {
       state.selectedCell = action.payload;
       state.rangeEnd = null;
     },
+    /**
+     * Сохраняет второй угол выделенного диапазона.
+     */
     setRangeEnd(state, action: { payload: CellPosition | null }) {
       state.rangeEnd = action.payload;
     },
+    /**
+     * Записывает исходное значение ячейки и добавляет прошлое состояние в undo history.
+     */
     setCellValue(
       state,
       action: { payload: { cellId: string; value: string } },
@@ -135,10 +187,16 @@ const spreadsheetSlice = createSlice({
       pushHistory(state);
       state.cells[action.payload.cellId] = action.payload.value;
     },
+    /**
+     * Очищает значение одной ячейки и добавляет прошлое состояние в undo history.
+     */
     clearCell(state, action: { payload: string }) {
       pushHistory(state);
       state.cells[action.payload] = "";
     },
+    /**
+     * Добавляет форматирование к ячейке и сохраняет уже существующие поля стиля.
+     */
     setCellStyle(
       state,
       action: { payload: { cellId: string; style: CellStyle } },
@@ -149,6 +207,9 @@ const spreadsheetSlice = createSlice({
         ...action.payload.style,
       };
     },
+    /**
+     * Полностью заменяет таблицу, в основном после импорта CSV.
+     */
     replaceSpreadsheet(
       state,
       action: {
@@ -166,6 +227,9 @@ const spreadsheetSlice = createSlice({
       state.rowCount = action.payload.rowCount;
       state.columnCount = action.payload.columnCount;
     },
+    /**
+     * Вставляет строку и сдвигает существующие ячейки/стили вниз от целевой строки.
+     */
     insertRowAt(state, action: { payload: number }) {
       const targetRow = action.payload;
       const nextCells: CellData = {};
@@ -190,6 +254,9 @@ const spreadsheetSlice = createSlice({
       state.cellStyles = nextStyles;
       state.rowCount += 1;
     },
+    /**
+     * Удаляет строку и сдвигает ячейки/стили ниже нее вверх.
+     */
     deleteRowAt(state, action: { payload: number }) {
       const targetRow = action.payload;
       const nextCells: CellData = {};
@@ -222,6 +289,9 @@ const spreadsheetSlice = createSlice({
       state.cellStyles = nextStyles;
       state.rowCount -= 1;
     },
+    /**
+     * Вставляет столбец и сдвигает существующие ячейки/стили вправо.
+     */
     insertColumnAt(state, action: { payload: string }) {
       const targetColumnIndex = getColumnIndex(action.payload);
       const nextCells: CellData = {};
@@ -247,6 +317,9 @@ const spreadsheetSlice = createSlice({
       state.cellStyles = nextStyles;
       state.columnCount += 1;
     },
+    /**
+     * Удаляет столбец и сдвигает ячейки/стили справа влево.
+     */
     deleteColumnAt(state, action: { payload: string }) {
       const targetColumnIndex = getColumnIndex(action.payload);
       const nextCells: CellData = {};
@@ -280,9 +353,15 @@ const spreadsheetSlice = createSlice({
       state.cellStyles = nextStyles;
       state.columnCount -= 1;
     },
+    /**
+     * Помечает текущую таблицу как сохраненную.
+     */
     markSpreadsheetSaved(state) {
       state.hasUnsavedChanges = false;
     },
+    /**
+     * Восстанавливает последний snapshot из прошлой истории.
+     */
     undo(state) {
       const previous = state.past.pop();
 
@@ -294,6 +373,9 @@ const spreadsheetSlice = createSlice({
       applySnapshot(state, previous);
       state.hasUnsavedChanges = true;
     },
+    /**
+     * Повторно применяет последний snapshot из будущей истории.
+     */
     redo(state) {
       const next = state.future.pop();
 

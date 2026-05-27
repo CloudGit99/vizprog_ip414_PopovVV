@@ -6,6 +6,9 @@ import type {
   RegisterData,
 } from "../services/authService";
 
+/**
+ * Redux state для авторизации и данных профиля.
+ */
 type AuthState = {
   user: AuthUser | null;
   accessToken: string | null;
@@ -20,25 +23,40 @@ const initialState: AuthState = {
   error: null,
 };
 
+/**
+ * Восстанавливает сессию пользователя по refresh token из localStorage.
+ */
 export const restoreSession = createAsyncThunk(
   "auth/restoreSession",
   async () => authService.refresh(),
 );
 
+/**
+ * Авторизует пользователя по email и паролю.
+ */
 export const login = createAsyncThunk(
   "auth/login",
   async (data: LoginData) => authService.login(data),
 );
 
+/**
+ * Регистрирует нового пользователя и сразу запускает сессию.
+ */
 export const register = createAsyncThunk(
   "auth/register",
   async (data: RegisterData) => authService.register(data),
 );
 
+/**
+ * Завершает текущую сессию.
+ */
 export const logout = createAsyncThunk("auth/logout", async () => {
   authService.logout();
 });
 
+/**
+ * Обновляет отображаемое имя текущего пользователя.
+ */
 export const updateProfileName = createAsyncThunk(
   "auth/updateProfileName",
   async (name: string, { getState }) => {
@@ -52,6 +70,9 @@ export const updateProfileName = createAsyncThunk(
   },
 );
 
+/**
+ * Меняет пароль текущего пользователя после проверки старого пароля.
+ */
 export const changePassword = createAsyncThunk(
   "auth/changePassword",
   async (data: { oldPassword: string; newPassword: string }, { getState }) => {
@@ -69,10 +90,16 @@ export const changePassword = createAsyncThunk(
   },
 );
 
+/**
+ * Slice, который хранит текущего пользователя, access token и ошибку авторизации.
+ */
 const authSlice = createSlice({
   name: "auth",
   initialState,
   reducers: {
+    /**
+     * Очищает видимое сообщение об ошибке авторизации/профиля.
+     */
     clearAuthError(state) {
       state.error = null;
     },

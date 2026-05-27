@@ -4,6 +4,11 @@ import { register } from "../store/authSlice";
 import { useAppDispatch, useAppSelector } from "../store/hooks";
 import type { FormEvent } from "react";
 
+/**
+ * Страница регистрации.
+ *
+ * Создает локальный mock-аккаунт и сразу авторизует нового пользователя.
+ */
 function RegisterPage() {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
@@ -20,6 +25,9 @@ function RegisterPage() {
     return <Navigate to="/dashboard" replace />;
   }
 
+  /**
+   * Проверяет форму регистрации и запускает register thunk.
+   */
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     setFormError("");

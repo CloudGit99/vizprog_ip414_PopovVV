@@ -9,6 +9,12 @@ import RegisterPage from "./pages/RegisterPage";
 import SpreadsheetPage from "./pages/SpreadsheetPage";
 import "./App.css";
 
+/**
+ * Дерево маршрутов приложения.
+ *
+ * /login и /register доступны без входа. Всё внутри ProtectedRoute требует
+ * авторизованного пользователя и отрисовывается внутри AppLayout.
+ */
 const router = createBrowserRouter([
   {
     path: "/",
@@ -50,6 +56,9 @@ const router = createBrowserRouter([
   },
 ]);
 
+/**
+ * Корневой компонент, который подключает React Router.
+ */
 function App() {
   return <RouterProvider router={router} />;
 }

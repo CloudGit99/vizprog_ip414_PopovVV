@@ -7,12 +7,18 @@ import type {
   SpreadsheetDocument,
 } from "../services/documentService";
 
+/**
+ * Redux state для списка документов пользователя и текущего открытого документа.
+ */
 type DocumentsState = {
   items: SpreadsheetDocument[];
   activeDocumentId: string | null;
   loadingStatus: "idle" | "loading" | "error";
 };
 
+/**
+ * Минимальная форма root state, нужная внутри document thunks.
+ */
 type DocumentsRootState = {
   auth: {
     user: {
@@ -34,6 +40,9 @@ const initialState: DocumentsState = {
   loadingStatus: "idle",
 };
 
+/**
+ * Загружает документы текущего авторизованного пользователя.
+ */
 export const loadDocuments = createAsyncThunk(
   "documents/loadDocuments",
   async (_, { getState }) => {
@@ -47,6 +56,9 @@ export const loadDocuments = createAsyncThunk(
   },
 );
 
+/**
+ * Создает новый пустой документ для текущего пользователя.
+ */
 export const createDocument = createAsyncThunk(
   "documents/createDocument",
   async (data: CreateDocumentData, { getState }) => {
@@ -60,6 +72,9 @@ export const createDocument = createAsyncThunk(
   },
 );
 
+/**
+ * Меняет название документа.
+ */
 export const renameDocument = createAsyncThunk(
   "documents/renameDocument",
   async (data: { id: string; title: string }) => {
@@ -69,6 +84,9 @@ export const renameDocument = createAsyncThunk(
   },
 );
 
+/**
+ * Удаляет документ по id.
+ */
 export const deleteDocument = createAsyncThunk(
   "documents/deleteDocument",
   async (id: string) => {
@@ -78,6 +96,9 @@ export const deleteDocument = createAsyncThunk(
   },
 );
 
+/**
+ * Создает копию существующего документа.
+ */
 export const duplicateDocument = createAsyncThunk(
   "documents/duplicateDocument",
   async (id: string) => {
@@ -85,6 +106,9 @@ export const duplicateDocument = createAsyncThunk(
   },
 );
 
+/**
+ * Сохраняет состояние активной таблицы в активный документ.
+ */
 export const saveActiveDocument = createAsyncThunk(
   "documents/saveActiveDocument",
   async (_, { dispatch, getState }) => {
@@ -120,10 +144,16 @@ export const saveActiveDocument = createAsyncThunk(
   },
 );
 
+/**
+ * Slice, который хранит список документов и id активного документа.
+ */
 const documentsSlice = createSlice({
   name: "documents",
   initialState,
   reducers: {
+    /**
+     * Выбирает документ, который сейчас открыт в редакторе таблицы.
+     */
     setActiveDocumentId(state, action: { payload: string | null }) {
       state.activeDocumentId = action.payload;
     },

@@ -3,6 +3,11 @@ import { changePassword, updateProfileName } from "../store/authSlice";
 import { useAppDispatch, useAppSelector } from "../store/hooks";
 import type { FormEvent as FormEventType } from "react";
 
+/**
+ * Страница профиля пользователя.
+ *
+ * Показывает данные аккаунта, количество документов и формы смены имени/пароля.
+ */
 function ProfilePage() {
   const dispatch = useAppDispatch();
   const user = useAppSelector((state) => state.auth.user);
@@ -17,6 +22,9 @@ function ProfilePage() {
     return <div className="page-panel">Пользователь не найден</div>;
   }
 
+  /**
+   * Сохраняет новое отображаемое имя через auth slice.
+   */
   async function handleNameSubmit(event: FormEventType) {
     event.preventDefault();
     setMessage("");
@@ -30,6 +38,9 @@ function ProfilePage() {
     setMessage("Имя сохранено");
   }
 
+  /**
+   * Меняет пароль после локальной проверки длины нового пароля.
+   */
   async function handlePasswordSubmit(event: FormEventType) {
     event.preventDefault();
     setMessage("");

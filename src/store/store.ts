@@ -19,6 +19,12 @@ import spreadsheetReducer, {
 } from "./spreadsheetSlice";
 import uiReducer, { setSaveStatus } from "./uiSlice";
 
+/**
+ * Следит за actions, которые меняют таблицу, и сохраняет активный документ с debounce.
+ *
+ * Компоненты остаются проще: они только отправляют изменения таблицы,
+ * а сохранение обрабатывается централизованно.
+ */
 const autosaveMiddleware = createListenerMiddleware();
 
 autosaveMiddleware.startListening({
@@ -42,6 +48,9 @@ autosaveMiddleware.startListening({
   },
 });
 
+/**
+ * Глобальный Redux store всего React-приложения.
+ */
 export const store = configureStore({
   reducer: {
     auth: authReducer,
@@ -53,5 +62,12 @@ export const store = configureStore({
     getDefaultMiddleware().prepend(autosaveMiddleware.middleware),
 });
 
+/**
+ * Тип всего дерева Redux state.
+ */
 export type RootState = ReturnType<typeof store.getState>;
+
+/**
+ * Тип dispatch с поддержкой thunk.
+ */
 export type AppDispatch = typeof store.dispatch;

@@ -10,6 +10,12 @@ type LocationState = {
   };
 };
 
+/**
+ * Страница входа.
+ *
+ * Проверяет поля формы, запускает login thunk и возвращает пользователя
+ * на закрытую страницу, куда он изначально пытался попасть.
+ */
 function LoginPage() {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
@@ -26,6 +32,9 @@ function LoginPage() {
     return <Navigate to={from} replace />;
   }
 
+  /**
+   * Проверяет форму входа и запускает авторизацию.
+   */
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     setFormError("");

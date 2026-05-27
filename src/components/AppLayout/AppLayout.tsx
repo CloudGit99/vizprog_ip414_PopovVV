@@ -12,6 +12,12 @@ import { clearSpreadsheet } from "../../store/spreadsheetSlice";
 import { useAppDispatch, useAppSelector } from "../../store/hooks";
 import "./AppLayout.css";
 
+/**
+ * Общая оболочка для всех страниц после входа.
+ *
+ * Содержит header, боковое меню, breadcrumbs и Outlet для текущего маршрута.
+ * Также блокирует переходы, если в активной таблице есть несохраненные изменения.
+ */ 
 function AppLayout() {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();

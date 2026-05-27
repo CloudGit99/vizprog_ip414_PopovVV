@@ -1,5 +1,8 @@
 import { Link } from "react-router-dom";
 
+/**
+ * Страница для неизвестных маршрутов.
+ */
 function NotFoundPage() {
   return (
     <div className="page-panel">

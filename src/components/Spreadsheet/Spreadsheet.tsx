@@ -54,10 +54,19 @@ type ContextMenuState = {
   column: string;
 } | null;
 
+/**
+ * Props компонента Spreadsheet.
+ *
+ * Если documentId не передан, компонент показывает режим dashboard со списком документов.
+ * Если documentId есть, компонент открывает режим редактора конкретного документа.
+ */
 type SpreadsheetProps = {
   documentId?: string;
 };
 
+/**
+ * Преобразует индекс столбца с нуля в название столбца таблицы.
+ */
 function getColumnName(index: number): string {
   let columnName = "";
   let currentIndex = index;
@@ -70,6 +79,9 @@ function getColumnName(index: number): string {
   return columnName;
 }
 
+/**
+ * Преобразует название столбца таблицы в индекс с нуля.
+ */
 function getColumnIndex(columnName: string): number {
   let index = 0;
 
@@ -80,10 +92,16 @@ function getColumnIndex(columnName: string): number {
   return index - 1;
 }
 
+/**
+ * Собирает id ячейки из названия столбца и номера строки.
+ */
 function getCellId(column: string, row: number): string {
   return `${column}${row}`;
 }
 
+/**
+ * Разбирает id ячейки вроде "A1" на координаты строки и столбца.
+ */
 function parseCellId(cellId: string): CellPosition {
   const match = cellId.match(/^([A-Z]+)(\d+)$/);
 
@@ -97,6 +115,11 @@ function parseCellId(cellId: string): CellPosition {
   };
 }
 
+/**
+ * Читает ячейку как число для формул.
+ *
+ * Пустые или нечисловые значения считаются 0.
+ */
 function getCellNumberValue(cells: CellData, cellId: string): number {
   const value = cells[cellId];
 
@@ -109,6 +132,9 @@ function getCellNumberValue(cells: CellData, cellId: string): number {
   return Number.isNaN(numberValue) ? 0 : numberValue;
 }
 
+/**
+ * Возвращает все id ячеек внутри прямоугольного диапазона.
+ */
 function getCellsInRange(startCell: string, endCell: string): string[] {
   const start = parseCellId(startCell);
   const end = parseCellId(endCell);
@@ -141,6 +167,11 @@ function getCellsInRange(startCell: string, endCell: string): string[] {
   return cellIds;
 }
 
+/**
+ * Считает поддерживаемые формулы таблицы.
+ *
+ * Поддерживаемый синтаксис: SUM(A1:B2), AVERAGE(A1:B2) и простые выражения +, -, *.
+ */
 function calculateFormula(cells: CellData, formula: string): string {
   const expression = formula.slice(1).trim();
 
@@ -203,6 +234,11 @@ function calculateFormula(cells: CellData, formula: string): string {
   return "#ERROR";
 }
 
+/**
+ * Возвращает видимое значение ячейки.
+ *
+ * Исходные формулы вычисляются перед отображением.
+ */
 function getDisplayValue(cells: CellData, cellId: string): string {
   const value = cells[cellId] ?? "";
 
@@ -213,6 +249,9 @@ function getDisplayValue(cells: CellData, cellId: string): string {
   return value;
 }
 
+/**
+ * Применяет числовой формат или формат даты к видимому значению.
+ */
 function formatCellValue(value: string, style: CellStyle): string {
   if (!value || value.startsWith("=")) {
     return value;
@@ -239,10 +278,16 @@ function formatCellValue(value: string, style: CellStyle): string {
   return value;
 }
 
+/**
+ * Форматирует ISO-дату для метаданных документа.
+ */
 function formatDate(value: string): string {
   return new Date(value).toLocaleString("ru-RU");
 }
 
+/**
+ * Преобразует объект cells в прямоугольный массив строк для CSV-экспорта.
+ */
 function getRowsFromCells(document: SpreadsheetDocument): string[][] {
   const rows: string[][] = [];
 
@@ -259,6 +304,9 @@ function getRowsFromCells(document: SpreadsheetDocument): string[][] {
   return rows;
 }
 
+/**
+ * Экранирует одно значение по правилам CSV.
+ */
 function escapeCsvValue(value: string): string {
   if (/[",\n\r]/.test(value)) {
     return `"${value.replaceAll('"', '""')}"`;
@@ -267,6 +315,9 @@ function escapeCsvValue(value: string): string {
   return value;
 }
 
+/**
+ * Парсит CSV-текст с поддержкой значений в кавычках и экранированных кавычек.
+ */
 function parseCsv(text: string): string[][] {
   const rows: string[][] = [];
   let row: string[] = [];
@@ -318,6 +369,9 @@ function parseCsv(text: string): string[][] {
   return rows;
 }
 
+/**
+ * Скачивает текстовое содержимое как файл браузера.
+ */
 function downloadFile(fileName: string, content: string, type: string) {
   const blob = new Blob([content], { type });
   const url = URL.createObjectURL(blob);
@@ -330,6 +384,12 @@ function downloadFile(fileName: string, content: string, type: string) {
   URL.revokeObjectURL(url);
 }
 
+/**
+ * Главный компонент таблицы.
+ *
+ * Объединяет режим dashboard, открытие документа, редактирование таблицы,
+ * формулы, форматирование, импорт/экспорт, контекстное меню и горячие клавиши.
+ */
 function Spreadsheet({ documentId }: SpreadsheetProps) {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
@@ -402,6 +462,9 @@ function Spreadsheet({ documentId }: SpreadsheetProps) {
 
   const selectedStyle = selectedCellId ? (cellStyles[selectedCellId] ?? {}) : {};
 
+  /**
+   * Открывает документ в редакторе таблицы и сбрасывает временное UI-состояние.
+   */
   const openDocument = useCallback(
     (document: SpreadsheetDocument) => {
       dispatch(setActiveDocumentId(document.id));
@@ -466,6 +529,9 @@ function Spreadsheet({ documentId }: SpreadsheetProps) {
     return () => window.removeEventListener("keydown", handleShortcut);
   }, [dispatch]);
 
+  /**
+   * Создает новый документ таблицы из значений модального окна.
+   */
   async function handleCreateDocument() {
     const title = newTitle.trim();
 
@@ -489,6 +555,9 @@ function Spreadsheet({ documentId }: SpreadsheetProps) {
     setNewColumnCount(INITIAL_COLUMN_COUNT);
   }
 
+  /**
+   * Переименовывает документ после ввода нового названия.
+   */
   async function handleRenameDocument(document: SpreadsheetDocument) {
     const title = window.prompt("Новое название", document.title)?.trim();
 
@@ -499,6 +568,9 @@ function Spreadsheet({ documentId }: SpreadsheetProps) {
     await dispatch(renameDocument({ id: document.id, title }));
   }
 
+  /**
+   * Удаляет документ и очищает редактор, если этот документ был активным.
+   */
   async function handleDeleteDocument(document: SpreadsheetDocument) {
     if (!window.confirm(`Удалить "${document.title}"?`)) {
       return;
@@ -511,10 +583,16 @@ function Spreadsheet({ documentId }: SpreadsheetProps) {
     }
   }
 
+  /**
+   * Создает копию выбранного документа.
+   */
   async function handleDuplicateDocument(document: SpreadsheetDocument) {
     await dispatch(duplicateDocument(document.id));
   }
 
+  /**
+   * Переводит ячейку в режим редактирования через input.
+   */
   function startEditing(row: number, column: string) {
     if (!activeDocument) {
       return;
@@ -530,6 +608,9 @@ function Spreadsheet({ documentId }: SpreadsheetProps) {
     setInputValue(cells[cellId] ?? "");
   }
 
+  /**
+   * Сохраняет введенное значение в Redux и возвращает фокус на таблицу.
+   */
   function saveCell() {
     if (!editingCell) {
       return;
@@ -545,10 +626,16 @@ function Spreadsheet({ documentId }: SpreadsheetProps) {
     });
   }
 
+  /**
+   * Выходит из режима редактирования без записи значения в Redux.
+   */
   function cancelEditing() {
     setEditingCell(null);
   }
 
+  /**
+   * Обновляет выбранную ячейку из строки формулы.
+   */
   function updateSelectedCellValue(value: string) {
     if (!selectedCellId) {
       return;
@@ -557,6 +644,9 @@ function Spreadsheet({ documentId }: SpreadsheetProps) {
     dispatch(setCellValue({ cellId: selectedCellId, value }));
   }
 
+  /**
+   * Применяет изменения форматирования к выбранной ячейке.
+   */
   function applySelectedStyle(style: CellStyle) {
     if (!selectedCellId) {
       return;
@@ -565,6 +655,11 @@ function Spreadsheet({ documentId }: SpreadsheetProps) {
     dispatch(setCellStyle({ cellId: selectedCellId, style }));
   }
 
+  /**
+   * Возвращает id текущих выбранных ячеек.
+   *
+   * Если выбран диапазон, возвращает все ячейки этого диапазона.
+   */
   function getSelectedRangeCells() {
     if (!selectedCell) {
       return [];
@@ -580,6 +675,9 @@ function Spreadsheet({ documentId }: SpreadsheetProps) {
     );
   }
 
+  /**
+   * Копирует выбранные значения в clipboard и при необходимости очищает исходные ячейки.
+   */
   async function copySelectedCells(cut: boolean) {
     const cellIds = getSelectedRangeCells();
 
@@ -596,6 +694,9 @@ function Spreadsheet({ documentId }: SpreadsheetProps) {
     }
   }
 
+  /**
+   * Перемещает выбранную ячейку на смещение строки/столбца в границах документа.
+   */
   function moveSelection(rowOffset: number, columnOffset: number) {
     if (!activeDocument || !selectedCell) {
       return;
@@ -622,6 +723,11 @@ function Spreadsheet({ documentId }: SpreadsheetProps) {
     );
   }
 
+  /**
+   * Обрабатывает горячие клавиши уровня таблицы.
+   *
+   * Горячие клавиши игнорируются, пока пользователь редактирует input внутри ячейки.
+   */
   function handleKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
     if (editingCell || !selectedCell) {
       return;
@@ -720,6 +826,9 @@ function Spreadsheet({ documentId }: SpreadsheetProps) {
     }
   }
 
+  /**
+   * Выбирает одну ячейку или расширяет диапазон выделения через Shift.
+   */
   function handleCellClick(row: number, column: string, shiftKey: boolean) {
     const nextCell = {
       row,
@@ -735,10 +844,16 @@ function Spreadsheet({ documentId }: SpreadsheetProps) {
     dispatch(setRangeEnd(null));
   }
 
+  /**
+   * Скрывает контекстное меню строк/столбцов.
+   */
   function closeContextMenu() {
     setContextMenu(null);
   }
 
+  /**
+   * Сохраняет измененную ширину столбца с ограничением минимальной ширины.
+   */
   function resizeColumn(column: string, width: number) {
     setColumnWidths((previous) => ({
       ...previous,
@@ -746,13 +861,23 @@ function Spreadsheet({ documentId }: SpreadsheetProps) {
     }));
   }
 
+  /**
+   * Сохраняет измененную высоту строки с ограничением минимальной высоты.
+   */
   function resizeRow(row: number, height: number) {
     setRowHeights((previous) => ({
       ...previous,
       [row]: Math.max(MIN_ROW_HEIGHT, height),
     }));
+
+    window.requestAnimationFrame(() => {
+      rowVirtualizer.measure();
+    });
   }
 
+  /**
+   * Вставляет строку и сдвигает локально сохраненные высоты строк.
+   */
   function handleInsertRowAt(targetRow: number) {
     dispatch(insertRowAt(targetRow));
 
@@ -771,8 +896,15 @@ function Spreadsheet({ documentId }: SpreadsheetProps) {
 
       return nextHeights;
     });
+
+    window.requestAnimationFrame(() => {
+      rowVirtualizer.measure();
+    });
   }
 
+  /**
+   * Удаляет строку и сдвигает локально сохраненные высоты строк.
+   */
   function handleDeleteRowAt(targetRow: number) {
     dispatch(deleteRowAt(targetRow));
 
@@ -795,8 +927,15 @@ function Spreadsheet({ documentId }: SpreadsheetProps) {
 
       return nextHeights;
     });
+
+    window.requestAnimationFrame(() => {
+      rowVirtualizer.measure();
+    });
   }
 
+  /**
+   * Вставляет столбец и сдвигает локально сохраненные ширины столбцов.
+   */
   function handleInsertColumnAt(targetColumn: string) {
     const targetColumnIndex = getColumnIndex(targetColumn);
 
@@ -819,6 +958,9 @@ function Spreadsheet({ documentId }: SpreadsheetProps) {
     });
   }
 
+  /**
+   * Удаляет столбец и сдвигает локально сохраненные ширины столбцов.
+   */
   function handleDeleteColumnAt(targetColumn: string) {
     const targetColumnIndex = getColumnIndex(targetColumn);
 
@@ -845,6 +987,9 @@ function Spreadsheet({ documentId }: SpreadsheetProps) {
     });
   }
 
+  /**
+   * Действие контекстного меню для вставки строки.
+   */
   function addRow() {
     const targetRow = contextMenu?.row ?? selectedCell?.row;
 
@@ -856,6 +1001,9 @@ function Spreadsheet({ documentId }: SpreadsheetProps) {
     closeContextMenu();
   }
 
+  /**
+   * Действие контекстного меню для удаления строки.
+   */
   function deleteRow() {
     const targetRow = contextMenu?.row ?? selectedCell?.row;
 
@@ -867,6 +1015,9 @@ function Spreadsheet({ documentId }: SpreadsheetProps) {
     closeContextMenu();
   }
 
+  /**
+   * Действие контекстного меню для вставки столбца.
+   */
   function addColumn() {
     const targetColumn = contextMenu?.column ?? selectedCell?.column;
 
@@ -878,6 +1029,9 @@ function Spreadsheet({ documentId }: SpreadsheetProps) {
     closeContextMenu();
   }
 
+  /**
+   * Действие контекстного меню для удаления столбца.
+   */
   function deleteColumn() {
     const targetColumn = contextMenu?.column ?? selectedCell?.column;
 
@@ -889,6 +1043,9 @@ function Spreadsheet({ documentId }: SpreadsheetProps) {
     closeContextMenu();
   }
 
+  /**
+   * Экспортирует значения активного документа в CSV.
+   */
   function exportCsv() {
     if (!activeDocument) {
       return;
@@ -901,6 +1058,9 @@ function Spreadsheet({ documentId }: SpreadsheetProps) {
     downloadFile(`${activeDocument.title}.csv`, csv, "text/csv;charset=utf-8");
   }
 
+  /**
+   * Экспортирует активный документ с метаданными, значениями и стилями в JSON.
+   */
   function exportJson() {
     if (!activeDocument) {
       return;
@@ -913,6 +1073,9 @@ function Spreadsheet({ documentId }: SpreadsheetProps) {
     );
   }
 
+  /**
+   * Импортирует значения CSV и заменяет содержимое активной таблицы.
+   */
   async function importCsv(file: File) {
     const text = await file.text();
     const rows = parseCsv(text);
